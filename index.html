@@ -24,7 +24,7 @@ main{max-width:760px;margin:auto}h1{font-size:27px;margin:0 0 6px}p{color:#9b9ba
 <div id="repos"></div>
 </main>
 <script>
-const API = "https://workerz.youngengolden.workers.dev";
+const API = "https://workerz.youngengolden.workers.dev/api/repos";
 
 function addLink(url){
   return "mangayomi://add-repo?url=" + encodeURIComponent(url);
@@ -48,7 +48,7 @@ async function load(){
     }).join("");
     status.textContent=`Loaded ${data.repos.length} repositories from Wotaku.`;
   }catch(e){
-    status.textContent="Could not load the Wotaku feed: "+e.message+". Replace YOUR-WORKER in the HTML with your deployed Worker URL.";
+    status.textContent="Could not load the Wotaku feed: "+e.message;
   }
 }
 load();
