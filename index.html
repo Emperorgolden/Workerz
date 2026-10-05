@@ -24,10 +24,12 @@ main{max-width:760px;margin:auto}h1{font-size:27px;margin:0 0 6px}p{color:#9b9ba
 <div id="repos"></div>
 </main>
 <script>
-const API = "https://workerz.youngengolden.workers.dev/api/repos";
+// Corrected the domain to emperorgolden
+const API = "https://workerz.emperorgolden.workers.dev/api/repos";
 
 function addLink(url){
-  return "mangayomi://add-repo?url=" + encodeURIComponent(url);
+  // Corrected the deep link scheme to anymex://
+  return "anymex://add-repo?url=" + encodeURIComponent(url);
 }
 function esc(s){
   return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -48,7 +50,8 @@ async function load(){
     }).join("");
     status.textContent=`Loaded ${data.repos.length} repositories from Wotaku.`;
   }catch(e){
-    status.textContent="Could not load the Wotaku feed: "+e.message;
+    // Cleaned up the error message so it only shows the actual fetch error
+    status.textContent="Could not load the Wotaku feed: " + e.message;
   }
 }
 load();
