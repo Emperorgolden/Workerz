@@ -1,0 +1,13 @@
+{
+  "name": "anymex-wotaku-api",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Live Wotaku Mangayomi repository discovery API for the AnymeX hub.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.68.0"
+  }
+}
