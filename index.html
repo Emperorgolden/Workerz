@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wotaku → AnymeX</title>
+<style>
+body{margin:0;background:#0b0b0f;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif;padding:24px 16px}
+main{max-width:760px;margin:auto}h1{font-size:27px;margin:0 0 6px}p{color:#9b9ba3;line-height:1.45}
+.status{margin:16px 0;padding:12px;border:1px solid #292931;border-radius:12px;color:#aaa}
+.repo{background:#15151b;border:1px solid #292931;border-radius:16px;padding:15px;margin:10px 0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.name{font-size:17px;font-weight:650}
+.kind{display:inline-block;margin-top:9px;margin-right:6px;padding:5px 8px;border-radius:8px;background:#24242c;color:#aaa;font-size:12px}
+.btn{display:inline-block;background:#fff;color:#08080a;text-decoration:none;font-weight:650;border-radius:11px;padding:10px 13px;white-space:nowrap}
+.sub{font-size:11px;color:#70707a;word-break:break-all;margin-top:8px}
+@media(max-width:600px){.row{align-items:flex-start;flex-direction:column}.btn{width:100%;text-align:center;padding:12px 0}}
+</style>
+</head>
+<body>
+<main>
+<h1>Wotaku → AnymeX</h1>
+<p>This page asks the server for the current repositories listed by Wotaku, then creates the same AnymeX handoff links for the discovered indexes.</p>
+<div id="status" class="status">Loading current repositories…</div>
+<div id="repos"></div>
+</main>
+<script>
+const API = "https://YOUR-WORKER.workers.dev/api/repos";
+
+function addLink(url){
+  return "mangayomi://add-repo?url=" + encodeURIComponent(url);
+}
+function esc(s){
+  return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+async function load(){
+  const status=document.querySelector("#status"), box=document.querySelector("#repos");
+  try{
+    const r=await fetch(API,{cache:"no-store"});
+    if(!r.ok) throw new Error("Server returned "+r.status);
+    const data=await r.json();
+    if(data.error) throw new Error(data.error);
+    box.innerHTML=data.repos.map(repo=>{
+      const links=repo.indexes.map(x=>`
+        <span class="kind">${esc(x.type)}</span>
+        <a class="btn" href="${addLink(x.url)}">Add to AnymeX</a>
+        <div class="sub">${esc(x.url)}</div>`).join("<div style='height:9px'></div>");
+      return `<section class="repo"><div class="row"><div class="name">${esc(repo.name)}</div><a class="btn" href="${addLink(repo.indexes[0].url)}">Add to AnymeX</a></div>${links}</section>`;
+    }).join("");
+    status.textContent=`Loaded ${data.repos.length} repositories from Wotaku.`;
+  }catch(e){
+    status.textContent="Could not load the Wotaku feed: "+e.message+". Replace YOUR-WORKER in the HTML with your deployed Worker URL.";
+  }
+}
+load();
+</script>
+</body>
+</html>
