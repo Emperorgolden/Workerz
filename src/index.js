@@ -25,7 +25,7 @@ async function fetchText(url) {
   });
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}: ${url}`);
+    throw new Error(`${response.status} ${response.statusText}`);
   }
 
   return response.text();
@@ -42,25 +42,16 @@ function decodeHtml(value) {
 
 function discoverGithubRepos(html) {
   const repos = new Map();
-
-  const pattern =
-    /href\s*=\s*["'](https?:\/\/github\.com\/[^"'?#\s]+)["']/gi;
+  const pattern = /href\s*=\s*["'](https?:\/\/github\.com\/[^"'?#\s]+)["']/gi;
 
   for (const match of html.matchAll(pattern)) {
     const url = decodeHtml(match[1]).replace(/\/+$/, "");
-
-    const parts = new URL(url).pathname
-      .split("/")
-      .filter(Boolean);
-
+    const parts = new URL(url).pathname.split("/").filter(Boolean);
     if (parts.length !== 2) continue;
 
     const [owner, repo] = parts;
 
-    if (
-      ["topics", "search", "settings", "marketplace"]
-        .includes(owner.toLowerCase())
-    ) {
+    if (["topics", "search", "settings", "marketplace"].includes(owner.toLowerCase())) {
       continue;
     }
 
@@ -74,131 +65,40 @@ function discoverGithubRepos(html) {
   return [...repos.values()];
 }
 
-function indexType(url) {
-  const lower = url.toLowerCase();
-
-  if (lower.includes("anime_index.json")) {
-    return "Anime";
-  }
-
-  if (lower.includes("novel_index.json")) {
-    return "Novel";
-  }
-
-  return "Manga";
-}
-
-function extractIndexUrls(text) {
-  const urls = new Set();
-
-  const pattern =
-    /https?:\/\/[^\s<>"'`\\)]+(?:index\.json)/gi;
-
-  for (const match of text.matchAll(pattern)) {
-    urls.add(
-      match[0].replace(/[),.;]+$/, "")
-    );
-  }
-
-  return [...urls];
-}
-
-async function githubApi(repo) {
-  const response = await fetch(
-    `https://api.github.com/repos/${repo}/contents`,
+function buildRepoIndexes(repo) {
+  return [
     {
-      headers: {
-        "accept": "application/vnd.github+json",
-        "user-agent": "AnymeX-Wotaku-Hub/1.0"
-      }
+      type: "Manga",
+      url: `https://raw.githubusercontent.com/${repo}/main/index.json`
+    },
+    {
+      type: "Anime",
+      url: `https://raw.githubusercontent.com/${repo}/main/anime_index.json`
+    },
+    {
+      type: "Novel",
+      url: `https://raw.githubusercontent.com/${repo}/main/novel_index.json`
     }
-  );
-
-  if (!response.ok) {
-    return [];
-  }
-
-  return response.json();
-}
-
-async function discoverRepoIndexes(repo) {
-  const urls = new Set();
-
-  // Try README on main, then master.
-  for (const branch of ["main", "master"]) {
-    try {
-      const readme = await fetchText(
-        `https://raw.githubusercontent.com/${repo}/refs/heads/${branch}/README.md`
-      );
-
-      for (const url of extractIndexUrls(readme)) {
-        urls.add(url);
-      }
-
-      if (urls.size > 0) {
-        break;
-      }
-    } catch {}
-  }
-
-  // Also inspect the GitHub repository itself.
-  try {
-    const entries = await githubApi(repo);
-
-    for (const entry of entries) {
-      if (
-        entry.type === "file" &&
-        /(?:^|\/)(?:anime_|novel_)?index\.json$/i.test(
-          entry.name
-        )
-      ) {
-        urls.add(
-          `https://raw.githubusercontent.com/${repo}/refs/heads/main/${entry.path}`
-        );
-      }
-    }
-  } catch {}
-
-  return [...urls];
+  ];
 }
 
 async function buildRepositoryList() {
-  const wotakuHtml =
-    await fetchText(WOTAKU_URL);
+  const wotakuHtml = await fetchText(WOTAKU_URL);
+  const repos = discoverGithubRepos(wotakuHtml);
 
-  const repos =
-    discoverGithubRepos(wotakuHtml);
-
-  const results = await Promise.all(
-    repos.map(async (repo) => {
-      const indexes =
-        await discoverRepoIndexes(repo.repo);
-
-      return {
-        ...repo,
-        indexes: indexes.map((url) => ({
-          type: indexType(url),
-          url
-        }))
-      };
-    })
-  );
-
-  return results
-    .filter(
-      (repo) => repo.indexes.length > 0
-    )
-    .sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
+  return repos
+    .map((repo) => ({
+      ...repo,
+      indexes: buildRepoIndexes(repo.repo)
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export default {
   async fetch(request) {
-    const url =
-      new URL(request.url);
+    const url = new URL(request.url);
 
-    // CORS preflight
+    // Handle CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
@@ -206,54 +106,39 @@ export default {
       });
     }
 
-    // Basic health check
-    if (
-      url.pathname === "/" ||
-      url.pathname === "/api"
-    ) {
-      return new Response(
-        "AnymeX Wotaku API is running. Use /api/repos",
-        {
-          headers: {
-            ...CORS_HEADERS,
-            "content-type":
-              "text/plain; charset=utf-8"
-          }
+    // Health check root
+    if (url.pathname === "/" || url.pathname === "/api") {
+      return new Response("AnymeX Wotaku API is active. Access /api/repos for data.", {
+        headers: {
+          ...CORS_HEADERS,
+          "content-type": "text/plain; charset=utf-8"
         }
-      );
+      });
     }
 
     // Main API endpoint
     if (url.pathname === "/api/repos") {
       try {
-        const repos =
-          await buildRepositoryList();
+        const repos = await buildRepositoryList();
 
         return json({
           source: WOTAKU_URL,
-          updated_at:
-            new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           count: repos.length,
           repos
         });
       } catch (error) {
         return json(
           {
-            error:
-              "Unable to retrieve the current Wotaku repository list.",
-            detail:
-              error instanceof Error
-                ? error.message
-                : String(error)
+            error: "Unable to retrieve the current Wotaku repository list.",
+            detail: error instanceof Error ? error.message : String(error)
           },
           502
         );
       }
     }
 
-    return json(
-      { error: "Not found" },
-      404
-    );
+    return json({ error: "Not found" }, 404);
   }
 };
+;
