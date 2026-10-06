@@ -3,35 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#08090d">
+
+<meta name="theme-color" content="#03040a">
 <meta name="color-scheme" content="dark">
 
-<title>Wotaku Archive</title>
+<title>AnymeX Extension Hub</title>
 
-<link rel="preload"
-      as="image"
-      href="https://files.catbox.moe/5dq2i6.jpeg">
+<link
+  rel="preload"
+  as="image"
+  href="https://files.catbox.moe/5dq2i6.jpeg"
+  fetchpriority="high"
+>
 
 <style>
 :root{
-  --ink:#050608;
-  --paper:#e9edf2;
-  --muted:#8c939d;
-  --line:rgba(255,255,255,.16);
-  --glass:rgba(12,15,21,.48);
-  --glass-light:rgba(255,255,255,.055);
-  --shadow:rgba(0,0,0,.58);
-  --cyan:#a8dfff;
-  --blue:#5d9fff;
-  --violet:#bca7ff;
-  --pink:#ffb7e7;
-  --green:#a8e6c1;
-  --red:#ff9b9b;
+  --bg:#03040a;
+  --panel:rgba(7,10,18,.58);
+  --panel-strong:rgba(5,8,15,.76);
+  --panel-soft:rgba(255,255,255,.055);
+
+  --white:#f7fbff;
+  --silver:#d9e6f4;
+  --muted:#9ba8b8;
+  --dim:#687487;
+
+  --ice:#a9d7ff;
+  --blue:#79bfff;
+  --violet:#7d79c9;
+
+  --line:rgba(222,238,255,.19);
+  --line-strong:rgba(226,241,255,.34);
+
+  --shadow:0 24px 70px rgba(0,0,0,.58);
+  --shadow-small:0 12px 32px rgba(0,0,0,.42);
+
   --radius:22px;
-  --mx:0;
-  --my:0;
-  --rx:0deg;
-  --ry:0deg;
+  --radius-small:14px;
+
+  --content-width:1440px;
 }
 
 *{
@@ -40,855 +50,1488 @@
 
 html{
   min-height:100%;
-  background:#050608;
+  background:var(--bg);
+  scroll-behavior:smooth;
 }
 
 body{
   margin:0;
-  min-height:100vh;
+  min-width:0;
+  min-height:100svh;
   overflow-x:hidden;
-  color:var(--paper);
-  background:#050608;
+  overflow-y:auto;
+
+  color:var(--white);
+  background:var(--bg);
+
   font-family:
     Inter,
-    ui-sans-serif,
     -apple-system,
     BlinkMacSystemFont,
+    "SF Pro Display",
+    "SF Pro Text",
     "Segoe UI",
+    Arial,
     sans-serif;
+
   -webkit-font-smoothing:antialiased;
   text-rendering:optimizeLegibility;
+
+  isolation:isolate;
 }
 
-button,
-input{
-  font:inherit;
-}
-
-button,
-a{
-  -webkit-tap-highlight-color:transparent;
-}
+/* =========================================================
+   WALLPAPER
+   ========================================================= */
 
 .wallpaper{
   position:fixed;
-  inset:-3%;
-  width:106%;
-  height:106%;
-  z-index:-8;
+  inset:0;
+  width:100%;
+  height:100%;
+  z-index:0;
+
+  display:block;
+
   object-fit:cover;
-  object-position:center;
-  image-rendering:auto;
-  transform:
-    translate3d(
-      calc(var(--mx) * -1px),
-      calc(var(--my) * -1px),
-      0
-    )
-    scale(1.035);
+  object-position:center center;
+
+  background:#03040a;
+
+  pointer-events:none;
+  user-select:none;
+
   filter:
-    grayscale(.08)
+    brightness(.48)
     contrast(1.08)
-    brightness(.55)
-    saturate(.78);
-  will-change:transform;
+    saturate(.76);
 }
 
-.wallpaper-shade{
+.wallpaper-tint{
   position:fixed;
   inset:0;
-  z-index:-7;
+  z-index:1;
+
   pointer-events:none;
+
   background:
     radial-gradient(
-      ellipse at 50% 20%,
-      rgba(92,145,255,.18),
-      transparent 40%
+      circle at 72% 18%,
+      rgba(92,142,255,.18),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 20% 78%,
+      rgba(100,80,180,.13),
+      transparent 34%
     ),
     linear-gradient(
       180deg,
-      rgba(3,4,7,.08),
-      rgba(3,4,7,.55) 70%,
-      rgba(3,4,7,.88)
+      rgba(2,3,8,.14),
+      rgba(2,3,8,.66)
     );
 }
 
-.halftone{
+.wallpaper-grain{
   position:fixed;
   inset:0;
-  z-index:-6;
+  z-index:2;
+
   pointer-events:none;
-  opacity:.13;
+
+  opacity:.18;
+
   background-image:
     radial-gradient(
-      circle,
-      rgba(255,255,255,.65) 0 1px,
-      transparent 1.25px
+      rgba(255,255,255,.23) .65px,
+      transparent .8px
     );
+
   background-size:5px 5px;
+
   mix-blend-mode:screen;
 }
 
-.scanlines{
-  position:fixed;
-  inset:0;
-  z-index:20;
-  pointer-events:none;
-  opacity:.06;
-  background:
-    repeating-linear-gradient(
-      180deg,
-      transparent 0,
-      transparent 3px,
-      rgba(255,255,255,.65) 4px,
-      transparent 5px
-    );
-}
+/* =========================================================
+   MAIN APP LAYER
+   ========================================================= */
 
-.noise{
-  position:fixed;
-  inset:-50%;
-  z-index:21;
-  pointer-events:none;
-  opacity:.035;
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
-  animation:noiseShift .23s steps(2) infinite;
-}
+.app{
+  position:relative;
+  z-index:3;
 
-@keyframes noiseShift{
-  0%{transform:translate3d(0,0,0)}
-  25%{transform:translate3d(2%,1%,0)}
-  50%{transform:translate3d(-1%,2%,0)}
-  75%{transform:translate3d(1%,-2%,0)}
-  100%{transform:translate3d(0,0,0)}
-}
+  width:100%;
+  min-height:100svh;
 
-.scene{
-  min-height:100vh;
-  perspective:1600px;
-  perspective-origin:50% 40%;
   padding:
-    max(22px,env(safe-area-inset-top))
+    max(16px,env(safe-area-inset-top))
     max(16px,env(safe-area-inset-right))
-    max(30px,env(safe-area-inset-bottom))
+    max(42px,env(safe-area-inset-bottom))
     max(16px,env(safe-area-inset-left));
 }
 
-.world{
-  width:min(1180px,100%);
+.shell{
+  width:min(
+    calc(100% - 8px),
+    var(--content-width)
+  );
+
   margin:0 auto;
-  transform-style:preserve-3d;
-  transform:
-    rotateX(var(--rx))
-    rotateY(var(--ry))
-    translateZ(0);
-  transition:transform .16s ease-out;
-  will-change:transform;
 }
 
+/* =========================================================
+   LIQUID GLASS
+   No external SVG.
+   No base64 image.
+   No displacement texture.
+   ========================================================= */
+
+.glass{
+  position:relative;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,.115),
+      rgba(255,255,255,.035) 36%,
+      rgba(85,124,190,.055) 70%,
+      rgba(255,255,255,.025)
+    );
+
+  border:1px solid var(--line);
+
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 rgba(255,255,255,.23),
+    inset 0 -1px 0 rgba(0,0,0,.38);
+
+  backdrop-filter:
+    blur(25px)
+    saturate(1.42)
+    contrast(1.06);
+
+  -webkit-backdrop-filter:
+    blur(25px)
+    saturate(1.42)
+    contrast(1.06);
+
+  isolation:isolate;
+}
+
+.glass::before{
+  content:"";
+
+  position:absolute;
+  inset:0;
+
+  pointer-events:none;
+
+  background:
+    radial-gradient(
+      420px 180px at 12% 0%,
+      rgba(255,255,255,.17),
+      transparent 65%
+    ),
+    linear-gradient(
+      115deg,
+      rgba(255,255,255,.07),
+      transparent 30%,
+      transparent 72%,
+      rgba(143,195,255,.05)
+    );
+
+  z-index:0;
+}
+
+.glass::after{
+  content:"";
+
+  position:absolute;
+  inset:0;
+
+  pointer-events:none;
+
+  border-radius:inherit;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,.045),
+      transparent 25%
+    );
+
+  z-index:0;
+}
+
+.glass > *{
+  position:relative;
+  z-index:1;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
 .topbar{
+  min-height:70px;
+
   display:flex;
   align-items:center;
   justify-content:space-between;
+
   gap:18px;
-  padding:10px 4px 20px;
-  transform:translateZ(55px);
+
+  padding:13px 17px;
+
+  margin-bottom:18px;
+
+  border-radius:18px;
+
+  position:sticky;
+  top:max(10px,env(safe-area-inset-top));
+  z-index:20;
 }
 
 .brand{
   display:flex;
   align-items:center;
   gap:12px;
+
+  min-width:0;
 }
 
-.star{
-  width:27px;
-  height:27px;
-  flex:none;
-  background:
-    linear-gradient(
-      135deg,
-      rgba(255,255,255,.95),
-      rgba(164,205,255,.55)
-    );
-  clip-path:
-    polygon(
-      50% 0%,
-      61% 36%,
-      100% 50%,
-      61% 64%,
-      50% 100%,
-      39% 64%,
-      0% 50%,
-      39% 36%
-    );
-  filter:
-    drop-shadow(0 0 10px rgba(145,198,255,.4));
-}
+.brand-mark{
+  width:34px;
+  height:34px;
 
-.brand-title{
-  font-family:
-    "Arial Narrow",
-    "Helvetica Neue",
-    sans-serif;
-  font-size:13px;
-  font-weight:800;
-  letter-spacing:.26em;
-  text-transform:uppercase;
-}
+  flex:0 0 34px;
 
-.brand-sub{
-  margin-top:4px;
-  color:var(--muted);
-  font-size:10px;
-  letter-spacing:.12em;
-  text-transform:uppercase;
-}
-
-.top-status{
-  color:#c6ccd5;
-  font-size:10px;
-  letter-spacing:.15em;
-  text-transform:uppercase;
-  text-align:right;
-}
-
-.top-status strong{
-  color:#fff;
-  font-weight:700;
-}
-
-.hero{
   position:relative;
-  overflow:hidden;
-  padding:clamp(28px,6vw,72px);
-  min-height:390px;
-  display:flex;
-  align-items:flex-end;
-  transform:
-    translateZ(75px)
-    rotateX(calc(var(--ry) * -.12))
-    rotateY(calc(var(--rx) * .12));
-}
 
-.glass{
-  position:relative;
+  border:1px solid rgba(231,244,255,.4);
+
   background:
     linear-gradient(
       145deg,
-      rgba(255,255,255,.075),
-      rgba(255,255,255,.018) 45%,
-      rgba(0,0,0,.28)
-    ),
-    var(--glass);
-  border:1px solid var(--line);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.23),
-    inset 0 0 45px rgba(255,255,255,.035),
-    0 35px 90px var(--shadow),
-    0 8px 30px rgba(0,0,0,.32);
-  backdrop-filter:
-    blur(25px)
-    saturate(1.4)
-    contrast(1.04);
-  -webkit-backdrop-filter:
-    blur(25px)
-    saturate(1.4)
-    contrast(1.04);
-}
-
-.glass::before{
-  content:"";
-  position:absolute;
-  inset:1px;
-  border-radius:inherit;
-  pointer-events:none;
-  background:
-    linear-gradient(
-      120deg,
-      rgba(255,255,255,.13),
-      transparent 17%,
-      transparent 75%,
-      rgba(255,255,255,.045)
+      rgba(255,255,255,.17),
+      rgba(86,134,211,.08)
     );
-  opacity:.8;
-}
 
-.glass::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:inherit;
-  pointer-events:none;
   box-shadow:
-    inset 0 0 1px 1px rgba(255,255,255,.22),
-    inset 0 0 20px rgba(255,255,255,.035);
+    inset 0 1px 0 rgba(255,255,255,.28),
+    0 8px 22px rgba(0,0,0,.35);
+
+  clip-path:polygon(
+    50% 0,
+    61% 37%,
+    100% 50%,
+    61% 63%,
+    50% 100%,
+    39% 63%,
+    0 50%,
+    39% 37%
+  );
 }
 
-.hero::before{
-  content:"";
-  position:absolute;
-  width:300px;
-  height:300px;
-  right:-80px;
-  top:-120px;
-  border-radius:50%;
-  background:
-    radial-gradient(
-      circle,
-      rgba(117,171,255,.22),
-      transparent 68%
-    );
-  filter:blur(12px);
-  transform:translateZ(90px);
+.brand-copy{
+  min-width:0;
 }
 
-.hero-copy{
-  position:relative;
-  z-index:2;
-  max-width:740px;
+.brand-title{
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.18em;
+  white-space:nowrap;
 }
 
-.eyebrow{
+.brand-sub{
+  margin-top:3px;
+
+  color:var(--muted);
+
+  font-size:10px;
+  font-weight:700;
+
+  letter-spacing:.12em;
+  text-transform:uppercase;
+
+  white-space:nowrap;
+}
+
+.top-meta{
   display:flex;
   align-items:center;
-  gap:10px;
-  margin-bottom:17px;
-  color:#b8c5d7;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  justify-content:flex-end;
+
+  gap:9px;
+
+  flex-wrap:wrap;
+}
+
+.metric{
+  display:inline-flex;
+  align-items:center;
+
+  min-height:30px;
+
+  padding:7px 10px;
+
+  border:1px solid rgba(221,238,255,.13);
+  border-radius:999px;
+
+  background:rgba(0,0,0,.18);
+
+  color:var(--muted);
+
   font-size:10px;
-  letter-spacing:.19em;
+  font-weight:800;
+
+  letter-spacing:.08em;
   text-transform:uppercase;
 }
 
-.eyebrow::before{
+/* =========================================================
+   HERO
+   ========================================================= */
+
+.hero{
+  padding:clamp(24px,4vw,52px);
+
+  border-radius:30px;
+
+  margin-bottom:16px;
+
+  overflow:hidden;
+}
+
+.hero-decoration{
+  position:absolute;
+
+  width:260px;
+  height:260px;
+
+  right:-80px;
+  top:-90px;
+
+  pointer-events:none;
+
+  border:1px solid rgba(202,226,255,.1);
+
+  border-radius:50%;
+
+  box-shadow:
+    inset 0 0 70px rgba(113,168,255,.07),
+    0 0 80px rgba(71,104,190,.08);
+
+  transform:none;
+}
+
+.hero-decoration::before,
+.hero-decoration::after{
   content:"";
-  width:28px;
-  height:1px;
-  background:#c8dfff;
-  box-shadow:0 0 12px rgba(170,211,255,.8);
+
+  position:absolute;
+
+  inset:20%;
+
+  border:1px solid rgba(205,227,255,.08);
+
+  border-radius:50%;
+}
+
+.hero-decoration::after{
+  inset:38%;
+}
+
+.eyebrow{
+  margin-bottom:14px;
+
+  color:var(--ice);
+
+  font-size:10px;
+  font-weight:900;
+
+  letter-spacing:.24em;
+  text-transform:uppercase;
 }
 
 .hero h1{
   margin:0;
-  max-width:850px;
-  font-family:
-    "Arial Narrow",
-    "Helvetica Neue",
-    sans-serif;
-  font-size:clamp(48px,9vw,108px);
-  line-height:.82;
-  letter-spacing:-.07em;
-  font-weight:800;
+
+  max-width:980px;
+
+  font-size:clamp(
+    42px,
+    8vw,
+    104px
+  );
+
+  line-height:.88;
+
+  font-weight:950;
+
+  letter-spacing:-.055em;
+
   text-transform:uppercase;
-  color:#f4f7fb;
+
+  color:transparent;
+
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #d9e9fa 24%,
+      #71839b 48%,
+      #f6fbff 56%,
+      #a5b5c7 73%,
+      #ffffff 100%
+    );
+
+  -webkit-background-clip:text;
+  background-clip:text;
+
   text-shadow:
-    0 2px 0 rgba(255,255,255,.15),
-    10px 14px 45px rgba(0,0,0,.6);
+    0 16px 50px rgba(0,0,0,.45);
 }
 
 .hero h1 span{
+  display:block;
+
   color:transparent;
-  -webkit-text-stroke:1px rgba(222,235,255,.75);
-  text-shadow:none;
-}
 
-.hero p{
-  max-width:650px;
-  margin:25px 0 0;
-  color:#b6bec9;
-  font-size:14px;
-  line-height:1.75;
-}
-
-.controls{
-  margin-top:20px;
-  padding:13px;
-  display:grid;
-  gap:12px;
-  transform:translateZ(50px);
-}
-
-.search{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  min-height:50px;
-  padding:0 17px;
-  border:1px solid rgba(255,255,255,.14);
-  border-radius:16px;
-  background:rgba(0,0,0,.24);
-  box-shadow:
-    inset 0 1px rgba(255,255,255,.08),
-    0 12px 30px rgba(0,0,0,.18);
-}
-
-.search-mark{
-  width:12px;
-  height:12px;
-  border:1px solid #dce8f8;
-  border-radius:50%;
-  position:relative;
-  flex:none;
-}
-
-.search-mark::after{
-  content:"";
-  position:absolute;
-  width:5px;
-  height:1px;
-  right:-4px;
-  bottom:-2px;
-  background:#dce8f8;
-  transform:rotate(45deg);
-}
-
-.search input{
-  width:100%;
-  border:0;
-  outline:0;
-  background:transparent;
-  color:#fff;
-  font-size:14px;
-}
-
-.search input::placeholder{
-  color:#747b86;
-}
-
-.filters{
-  display:flex;
-  gap:7px;
-  overflow-x:auto;
-  scrollbar-width:none;
-  padding-bottom:1px;
-}
-
-.filters::-webkit-scrollbar{
-  display:none;
-}
-
-.filter{
-  flex:none;
-  cursor:pointer;
-  border:1px solid rgba(255,255,255,.13);
-  background:rgba(255,255,255,.025);
-  color:#929aa5;
-  padding:10px 13px;
-  border-radius:12px;
-  font-size:10px;
-  letter-spacing:.12em;
-  text-transform:uppercase;
-  transition:
-    color .2s ease,
-    background .2s ease,
-    border-color .2s ease,
-    transform .2s ease;
-}
-
-.filter:hover{
-  transform:translateY(-2px);
-  color:#fff;
-}
-
-.filter.active{
-  color:#071019;
-  background:#dcecff;
-  border-color:#dcecff;
-  box-shadow:
-    0 5px 22px rgba(160,205,255,.24);
-}
-
-.catalog{
-  margin-top:20px;
-  display:grid;
-  gap:14px;
-  transform-style:preserve-3d;
-}
-
-.source{
-  padding:19px;
-  transform:
-    translateZ(35px)
-    rotateX(calc(var(--ry) * -.05))
-    rotateY(calc(var(--rx) * .05));
-  transition:transform .28s ease, border-color .28s ease;
-}
-
-.source:hover{
-  transform:
-    translateZ(48px)
-    rotateX(1deg)
-    rotateY(-1deg);
-  border-color:rgba(213,231,255,.28);
-}
-
-.source-head{
-  display:flex;
-  justify-content:space-between;
-  gap:15px;
-  align-items:flex-start;
-  margin-bottom:15px;
-}
-
-.source-name{
-  font-size:18px;
-  font-weight:760;
-  letter-spacing:-.025em;
-}
-
-.source-meta{
-  margin-top:5px;
-  color:#7e8792;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:10px;
-  letter-spacing:.06em;
-}
-
-.source-count{
-  color:#b9c8da;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:10px;
-  white-space:nowrap;
-}
-
-.entries{
-  display:grid;
-  grid-template-columns:
-    repeat(
-      auto-fit,
-      minmax(270px,1fr)
-    );
-  gap:10px;
-}
-
-.entry{
-  position:relative;
-  overflow:hidden;
-  padding:15px;
-  min-height:145px;
-  border:1px solid rgba(255,255,255,.095);
-  border-radius:17px;
   background:
     linear-gradient(
-      145deg,
-      rgba(255,255,255,.055),
-      rgba(0,0,0,.17)
+      90deg,
+      #9fcfff,
+      #ffffff 40%,
+      #8797ad 74%,
+      #d9e8f7
     );
-  transform-style:preserve-3d;
-  transition:
-    transform .25s ease,
-    border-color .25s ease,
-    background .25s ease;
+
+  -webkit-background-clip:text;
+  background-clip:text;
 }
 
-.entry:hover{
-  transform:
-    translate3d(0,-4px,24px)
-    rotateX(1deg)
-    rotateY(-1deg);
-  border-color:rgba(215,232,255,.26);
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255,255,255,.075),
-      rgba(0,0,0,.18)
-    );
+.hero-copy{
+  max-width:760px;
+
+  margin:22px 0 0;
+
+  color:#bac7d7;
+
+  font-size:clamp(
+    13px,
+    1.5vw,
+    16px
+  );
+
+  line-height:1.7;
 }
 
-.entry::before{
-  content:"";
-  position:absolute;
-  width:100px;
-  height:100px;
-  right:-50px;
-  top:-50px;
-  border-radius:50%;
-  background:
-    radial-gradient(
-      circle,
-      rgba(151,196,255,.12),
-      transparent 70%
-    );
-  pointer-events:none;
-}
-
-.entry-top{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-}
-
-.entry-name{
-  font-size:15px;
-  font-weight:720;
-  line-height:1.25;
-}
-
-.entry-section{
-  margin-top:4px;
-  color:#717985;
-  font-size:10px;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-}
-
-.badges{
+.hero-actions{
   display:flex;
   flex-wrap:wrap;
-  gap:5px;
-  margin-top:12px;
+
+  gap:9px;
+
+  margin-top:25px;
 }
 
-.badge{
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.035);
-  color:#969faa;
-  padding:5px 7px;
-  border-radius:8px;
-  font-size:9px;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-}
-
-.badge.nsfw{
-  color:#ffb2c8;
-  border-color:rgba(255,142,177,.28);
-}
-
-.badge.online{
-  color:#b9e8ce;
-  border-color:rgba(144,220,177,.24);
-}
-
-.badge.offline{
-  color:#ffb0b0;
-  border-color:rgba(255,120,120,.24);
-}
-
-.actions{
-  display:flex;
-  flex-wrap:wrap;
-  gap:7px;
-  margin-top:15px;
-}
+/* =========================================================
+   BUTTONS
+   ========================================================= */
 
 .action{
-  appearance:none;
-  border:1px solid rgba(255,255,255,.13);
-  background:rgba(255,255,255,.045);
-  color:#d8dee7;
-  border-radius:10px;
-  padding:8px 10px;
-  cursor:pointer;
+  position:relative;
+  z-index:5;
+
+  display:inline-flex;
+
+  align-items:center;
+  justify-content:center;
+
+  min-height:42px;
+
+  padding:10px 14px;
+
+  border:1px solid rgba(224,239,255,.2);
+  border-radius:12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,.13),
+      rgba(255,255,255,.035)
+    );
+
+  color:var(--white);
+
+  font-size:11px;
+  font-weight:900;
+
+  letter-spacing:.08em;
+  text-transform:uppercase;
+
   text-decoration:none;
-  font-size:10px;
-  letter-spacing:.04em;
+
+  cursor:pointer;
+
+  touch-action:manipulation;
+
+  -webkit-tap-highlight-color:transparent;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.18),
+    0 8px 20px rgba(0,0,0,.22);
+
   transition:
     transform .18s ease,
     border-color .18s ease,
     background .18s ease,
-    color .18s ease;
+    box-shadow .18s ease;
+}
+
+.action::before{
+  content:"";
+
+  width:7px;
+  height:7px;
+
+  margin-right:8px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff,
+      #79bfff
+    );
+
+  clip-path:polygon(
+    50% 0,
+    62% 38%,
+    100% 50%,
+    62% 62%,
+    50% 100%,
+    38% 62%,
+    0 50%,
+    38% 38%
+  );
+
+  opacity:.8;
 }
 
 .action:hover{
   transform:translateY(-2px);
-  border-color:rgba(218,235,255,.35);
-  background:rgba(255,255,255,.09);
-  color:#fff;
+
+  border-color:rgba(226,242,255,.42);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,.19),
+      rgba(96,154,231,.08)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.25),
+    0 14px 28px rgba(0,0,0,.3);
+}
+
+.action:active{
+  transform:translateY(0);
 }
 
 .action.primary{
-  color:#06101a;
-  background:#d9eaff;
-  border-color:#d9eaff;
-  font-weight:760;
+  color:#05070b;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f7fbff,
+      #b9d9f7 55%,
+      #8096af
+    );
+
+  border-color:rgba(255,255,255,.65);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 10px 28px rgba(76,130,195,.24);
 }
 
-.action.primary:hover{
-  background:#fff;
+.action.primary::before{
+  background:#07101c;
 }
 
-.index-panel{
+/* =========================================================
+   CONTENT TYPE TABS
+   ========================================================= */
+
+.navigation{
+  position:sticky;
+
+  top:92px;
+
+  z-index:18;
+
+  padding:7px;
+
+  margin-bottom:12px;
+
+  border-radius:18px;
+}
+
+.tab-scroll{
+  display:flex;
+
+  gap:6px;
+
+  width:100%;
+
+  overflow-x:auto;
+  overflow-y:hidden;
+
+  scrollbar-width:none;
+
+  -webkit-overflow-scrolling:touch;
+
+  touch-action:pan-x;
+}
+
+.tab-scroll::-webkit-scrollbar{
   display:none;
-  margin-top:13px;
-  padding-top:13px;
-  border-top:1px solid rgba(255,255,255,.09);
 }
 
-.index-panel.open{
-  display:block;
+.tab{
+  flex:0 0 auto;
+
+  min-height:39px;
+
+  padding:9px 14px;
+
+  border:1px solid transparent;
+  border-radius:11px;
+
+  background:transparent;
+
+  color:#93a0b1;
+
+  font-size:10px;
+  font-weight:900;
+
+  letter-spacing:.12em;
+  text-transform:uppercase;
+
+  cursor:pointer;
+
+  touch-action:manipulation;
+
+  -webkit-tap-highlight-color:transparent;
+
+  transition:
+    background .18s ease,
+    color .18s ease,
+    border-color .18s ease;
 }
 
-.extension-list{
-  display:grid;
+.tab:hover{
+  color:#eef7ff;
+}
+
+.tab.active{
+  color:#05070b;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f4f9ff,
+      #b5d4f1
+    );
+
+  border-color:rgba(255,255,255,.6);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 7px 18px rgba(0,0,0,.25);
+}
+
+/* =========================================================
+   SOURCE FILTER
+   ========================================================= */
+
+.source-filter{
+  display:flex;
+
+  flex-wrap:wrap;
+
   gap:7px;
+
+  margin-bottom:14px;
 }
 
-.extension{
+.source-chip{
+  border:1px solid rgba(220,237,255,.14);
+
+  background:rgba(4,7,13,.46);
+
+  color:#8f9bad;
+
+  border-radius:999px;
+
+  padding:8px 11px;
+
+  font-size:9px;
+  font-weight:900;
+
+  letter-spacing:.1em;
+  text-transform:uppercase;
+
+  cursor:pointer;
+
+  touch-action:manipulation;
+
+  -webkit-tap-highlight-color:transparent;
+}
+
+.source-chip.active{
+  color:#edf7ff;
+
+  border-color:rgba(190,220,250,.32);
+
+  background:
+    rgba(119,166,218,.12);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.1);
+}
+
+/* =========================================================
+   TOOLBAR
+   ========================================================= */
+
+.toolbar{
+  display:grid;
+
+  grid-template-columns:minmax(0,1fr) auto;
+
+  gap:10px;
+
+  padding:10px;
+
+  margin-bottom:16px;
+
+  border-radius:18px;
+}
+
+.search{
+  min-width:0;
+
   display:flex;
   align-items:center;
-  gap:10px;
-  padding:9px;
-  border:1px solid rgba(255,255,255,.07);
-  background:rgba(0,0,0,.15);
+
+  padding:0 12px;
+
+  border:1px solid rgba(222,238,255,.13);
   border-radius:12px;
+
+  background:rgba(0,0,0,.2);
 }
 
-.extension-icon{
-  width:30px;
-  height:30px;
-  flex:none;
-  border-radius:8px;
-  object-fit:cover;
-  background:#11141a;
-  border:1px solid rgba(255,255,255,.1);
-}
+.search-label{
+  flex:0 0 auto;
 
-.extension-main{
-  min-width:0;
-  flex:1;
-}
+  margin-right:10px;
 
-.extension-name{
-  color:#e4e8ee;
-  font-size:12px;
-  font-weight:680;
-}
+  color:#718094;
 
-.extension-meta{
-  margin-top:3px;
-  color:#707883;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   font-size:9px;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  font-weight:900;
+
+  letter-spacing:.14em;
+}
+
+.search input{
+  width:100%;
+  min-width:0;
+
+  height:42px;
+
+  border:0;
+  outline:0;
+
+  background:transparent;
+
+  color:#f4f8ff;
+
+  font:inherit;
+  font-size:13px;
+}
+
+.search input::placeholder{
+  color:#667284;
+}
+
+.feed-status{
+  display:flex;
+  align-items:center;
+
+  min-height:42px;
+
+  padding:0 13px;
+
+  border:1px solid rgba(222,238,255,.13);
+  border-radius:12px;
+
+  background:rgba(0,0,0,.2);
+
+  color:#8794a7;
+
+  font-size:9px;
+  font-weight:900;
+
+  letter-spacing:.1em;
+  text-transform:uppercase;
+
   white-space:nowrap;
 }
 
-.index-state{
-  color:#7e8791;
-  font-size:10px;
-  line-height:1.5;
+/* =========================================================
+   SOURCE SECTION
+   ========================================================= */
+
+.source-section{
+  margin-bottom:22px;
+
+  scroll-margin-top:145px;
 }
 
-.footer{
-  padding:35px 5px 10px;
-  color:#646b75;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+.section-heading{
+  display:flex;
+
+  align-items:flex-end;
+  justify-content:space-between;
+
+  gap:16px;
+
+  margin-bottom:10px;
+
+  padding:0 4px;
+}
+
+.section-name{
+  font-size:17px;
+  font-weight:950;
+
+  letter-spacing:-.02em;
+
+  text-transform:uppercase;
+}
+
+.section-meta{
+  color:#7f8b9c;
+
   font-size:9px;
-  line-height:1.8;
-  text-align:center;
-  letter-spacing:.06em;
-  transform:translateZ(25px);
+  font-weight:800;
+
+  letter-spacing:.1em;
+  text-transform:uppercase;
+
+  text-align:right;
 }
 
-.hidden{
-  display:none !important;
+/* =========================================================
+   REPOSITORY GRID
+   ========================================================= */
+
+.repo-grid{
+  display:grid;
+
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(
+        min(100%,360px),
+        1fr
+      )
+    );
+
+  gap:14px;
+
+  align-items:start;
 }
+
+/* =========================================================
+   REPOSITORY CARD
+   IMPORTANT:
+   No rotateX.
+   No rotateY.
+   No perspective transform.
+   No transformed parent.
+   ========================================================= */
+
+.repo-card{
+  position:relative;
+
+  min-width:0;
+
+  padding:17px;
+
+  border-radius:var(--radius);
+
+  overflow:hidden;
+
+  content-visibility:auto;
+
+  contain-intrinsic-size:360px;
+
+  scroll-margin-top:145px;
+
+  transition:
+    border-color .2s ease,
+    box-shadow .2s ease,
+    background .2s ease;
+}
+
+.repo-card:hover{
+  border-color:rgba(218,237,255,.31);
+
+  box-shadow:
+    0 28px 76px rgba(0,0,0,.6),
+    inset 0 1px 0 rgba(255,255,255,.23);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,.13),
+      rgba(255,255,255,.04)
+    );
+}
+
+.repo-head{
+  display:flex;
+
+  align-items:flex-start;
+  justify-content:space-between;
+
+  gap:12px;
+
+  margin-bottom:13px;
+}
+
+.repo-title{
+  min-width:0;
+
+  font-size:18px;
+  font-weight:950;
+
+  letter-spacing:-.025em;
+
+  overflow-wrap:anywhere;
+}
+
+.repo-source{
+  margin-top:4px;
+
+  color:#7f8c9f;
+
+  font-size:9px;
+  font-weight:800;
+
+  letter-spacing:.09em;
+
+  text-transform:uppercase;
+}
+
+.repo-badges{
+  display:flex;
+
+  flex-wrap:wrap;
+
+  justify-content:flex-end;
+
+  gap:5px;
+
+  flex:0 0 auto;
+}
+
+.badge{
+  display:inline-flex;
+
+  align-items:center;
+
+  min-height:24px;
+
+  padding:5px 7px;
+
+  border:1px solid rgba(219,237,255,.15);
+
+  border-radius:999px;
+
+  background:rgba(0,0,0,.18);
+
+  color:#a5b3c4;
+
+  font-size:8px;
+  font-weight:900;
+
+  letter-spacing:.09em;
+
+  text-transform:uppercase;
+}
+
+.badge.nsfw{
+  color:#f0c8d8;
+
+  border-color:rgba(240,175,202,.25);
+
+  background:rgba(150,60,100,.11);
+}
+
+.repo-url{
+  display:block;
+
+  max-width:100%;
+
+  margin-bottom:13px;
+
+  color:#657388;
+
+  font-size:9px;
+  line-height:1.45;
+
+  overflow-wrap:anywhere;
+}
+
+/* =========================================================
+   EXTENSION ROW
+   ========================================================= */
+
+.extension-list{
+  display:flex;
+
+  flex-direction:column;
+
+  gap:7px;
+
+  margin-top:10px;
+}
+
+.extension{
+  position:relative;
+
+  display:grid;
+
+  grid-template-columns:minmax(0,1fr) auto;
+
+  gap:10px;
+
+  align-items:center;
+
+  min-width:0;
+
+  padding:11px;
+
+  border:1px solid rgba(221,237,255,.11);
+
+  border-radius:14px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,.055),
+      rgba(0,0,0,.12)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.07);
+
+  transition:
+    border-color .18s ease,
+    background .18s ease;
+
+  touch-action:manipulation;
+}
+
+.extension:hover{
+  border-color:rgba(215,236,255,.25);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,.085),
+      rgba(67,105,157,.07)
+    );
+}
+
+.extension-info{
+  min-width:0;
+}
+
+.extension-top{
+  display:flex;
+
+  align-items:center;
+
+  gap:7px;
+
+  flex-wrap:wrap;
+
+  margin-bottom:4px;
+}
+
+.extension-name{
+  color:#edf5ff;
+
+  font-size:12px;
+  font-weight:900;
+
+  overflow-wrap:anywhere;
+}
+
+.extension-type{
+  display:inline-flex;
+
+  padding:4px 6px;
+
+  border-radius:999px;
+
+  border:1px solid rgba(207,229,255,.14);
+
+  color:#9eb1c6;
+
+  background:rgba(255,255,255,.035);
+
+  font-size:7px;
+  font-weight:900;
+
+  letter-spacing:.1em;
+
+  text-transform:uppercase;
+}
+
+.extension-url{
+  color:#65758a;
+
+  font-size:8px;
+
+  line-height:1.4;
+
+  overflow-wrap:anywhere;
+}
+
+.extension-actions{
+  display:flex;
+
+  align-items:center;
+
+  gap:6px;
+
+  flex-wrap:wrap;
+
+  justify-content:flex-end;
+}
+
+.mini-action{
+  position:relative;
+  z-index:5;
+
+  display:inline-flex;
+
+  align-items:center;
+  justify-content:center;
+
+  min-height:34px;
+
+  padding:8px 9px;
+
+  border-radius:10px;
+
+  border:1px solid rgba(219,237,255,.15);
+
+  background:rgba(255,255,255,.06);
+
+  color:#d9e9fa;
+
+  font-size:8px;
+  font-weight:900;
+
+  letter-spacing:.07em;
+
+  text-transform:uppercase;
+
+  text-decoration:none;
+
+  white-space:nowrap;
+
+  cursor:pointer;
+
+  touch-action:manipulation;
+
+  -webkit-tap-highlight-color:transparent;
+}
+
+.mini-action.add{
+  color:#05070b;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f5faff,
+      #aacbea
+    );
+
+  border-color:rgba(255,255,255,.6);
+}
+
+.mini-action:hover{
+  border-color:rgba(224,240,255,.4);
+}
+
+.mini-action:active{
+  transform:scale(.98);
+}
+
+/* =========================================================
+   EMPTY / ERROR
+   ========================================================= */
 
 .empty{
-  padding:50px 20px;
+  padding:40px 20px;
+
   text-align:center;
-  color:#8b929c;
+
+  border:1px solid rgba(221,237,255,.12);
+
+  border-radius:20px;
+
+  color:#8795a8;
+
+  background:rgba(4,7,13,.42);
+
+  line-height:1.6;
 }
 
-@media(max-width:700px){
-  .scene{
-    padding-top:
-      max(12px,env(safe-area-inset-top));
+.error{
+  border-color:rgba(245,150,175,.2);
+
+  color:#d5a5b5;
+}
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+.footer{
+  margin-top:24px;
+
+  padding:16px 4px;
+
+  color:#69778b;
+
+  font-size:9px;
+  line-height:1.6;
+
+  text-align:center;
+
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media(max-width:900px){
+
+  .app{
+    padding-top:max(10px,env(safe-area-inset-top));
   }
 
   .topbar{
-    padding-bottom:13px;
+    position:relative;
+    top:auto;
   }
 
-  .top-status{
-    display:none;
+  .navigation{
+    position:sticky;
+    top:8px;
   }
 
   .hero{
-    min-height:430px;
-    padding:25px;
+    border-radius:24px;
+  }
+
+  .repo-grid{
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0,1fr)
+      );
+  }
+}
+
+@media(max-width:680px){
+
+  .shell{
+    width:100%;
+  }
+
+  .topbar{
+    align-items:flex-start;
+    flex-direction:column;
+
+    padding:14px;
+  }
+
+  .top-meta{
+    justify-content:flex-start;
+    width:100%;
+  }
+
+  .hero{
+    padding:25px 20px;
   }
 
   .hero h1{
-    font-size:clamp(48px,16vw,82px);
+    font-size:clamp(
+      43px,
+      15vw,
+      82px
+    );
   }
 
-  .hero p{
-    font-size:13px;
-  }
-
-  .entries{
+  .toolbar{
     grid-template-columns:1fr;
   }
 
-  .source{
-    padding:14px;
+  .feed-status{
+    justify-content:center;
+  }
+
+  .repo-grid{
+    grid-template-columns:1fr;
+  }
+
+  .section-heading{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:5px;
+  }
+
+  .section-meta{
+    text-align:left;
   }
 }
 
+@media(max-width:470px){
+
+  .app{
+    padding-left:
+      max(10px,env(safe-area-inset-left));
+
+    padding-right:
+      max(10px,env(safe-area-inset-right));
+  }
+
+  .hero{
+    padding:23px 17px;
+  }
+
+  .hero h1{
+    font-size:clamp(
+      39px,
+      15.5vw,
+      66px
+    );
+  }
+
+  .hero-copy{
+    font-size:13px;
+  }
+
+  .navigation{
+    border-radius:15px;
+  }
+
+  .tab{
+    padding-left:11px;
+    padding-right:11px;
+  }
+
+  .repo-card{
+    padding:14px;
+    border-radius:19px;
+  }
+
+  .repo-head{
+    flex-direction:column;
+  }
+
+  .repo-badges{
+    justify-content:flex-start;
+  }
+
+  .extension{
+    grid-template-columns:1fr;
+  }
+
+  .extension-actions{
+    justify-content:flex-start;
+  }
+
+  .mini-action{
+    flex:1 1 auto;
+  }
+}
+
+@media(max-width:360px){
+
+  .brand-sub{
+    display:none;
+  }
+
+  .hero h1{
+    font-size:38px;
+  }
+
+  .action{
+    width:100%;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITY AND MOTION SAFETY
+   ========================================================= */
+
 @media(prefers-reduced-motion:reduce){
+
+  html{
+    scroll-behavior:auto;
+  }
+
   *,
   *::before,
   *::after{
-    animation:none !important;
-    transition:none !important;
-    scroll-behavior:auto !important;
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.001ms!important;
   }
+}
 
-  .world{
-    transform:none !important;
-  }
+/* =========================================================
+   BACKDROP FALLBACK
+   ========================================================= */
 
-  .wallpaper{
-    transform:scale(1.035) !important;
+@supports not (
+  backdrop-filter:blur(10px)
+){
+
+  .glass{
+    background:
+      rgba(5,8,15,.88);
   }
 }
 </style>
-
-<svg
-  width="0"
-  height="0"
-  aria-hidden="true"
-  style="position:absolute"
->
-  <defs>
-    <filter
-      id="liquid-distortion"
-      x="-20%"
-      y="-20%"
-      width="140%"
-      height="140%"
-      color-interpolation-filters="sRGB"
-    >
-      <feTurbulence
-        type="fractalNoise"
-        baseFrequency=".018 .028"
-        numOctaves="2"
-        seed="19"
-        result="noise"
-      />
-
-      <feDisplacementMap
-        in="SourceGraphic"
-        in2="noise"
-        scale="12"
-        xChannelSelector="R"
-        yChannelSelector="G"
-        result="distorted"
-      />
-
-      <feGaussianBlur
-        in="distorted"
-        stdDeviation=".25"
-      />
-    </filter>
-  </defs>
-</svg>
 </head>
 
 <body>
@@ -897,998 +1540,1248 @@ a{
   class="wallpaper"
   src="https://files.catbox.moe/5dq2i6.jpeg"
   alt=""
+  aria-hidden="true"
   draggable="false"
+  fetchpriority="high"
+  decoding="async"
 >
 
-<div class="wallpaper-shade"></div>
-<div class="halftone"></div>
-<div class="scanlines"></div>
-<div class="noise"></div>
+<div class="wallpaper-tint" aria-hidden="true"></div>
+<div class="wallpaper-grain" aria-hidden="true"></div>
 
-<div class="scene">
-  <div class="world" id="world">
+<div class="app">
 
-    <header class="topbar">
+  <div class="shell">
+
+    <header class="topbar glass">
+
       <div class="brand">
-        <div class="star"></div>
 
-        <div>
+        <div class="brand-mark" aria-hidden="true"></div>
+
+        <div class="brand-copy">
           <div class="brand-title">
-            Wotaku Archive
+            WOTAKU / ANYMEX
           </div>
 
           <div class="brand-sub">
-            AnymeX source interface
+            Live extension repository index
           </div>
         </div>
+
       </div>
 
-      <div class="top-status">
-        Four source lanes<br>
-        <strong>Unfiltered catalogue</strong>
+      <div class="top-meta">
+
+        <span class="metric" id="repoMetric">
+          Repositories 0
+        </span>
+
+        <span class="metric" id="extensionMetric">
+          Extensions 0
+        </span>
+
+        <span class="metric" id="feedMetric">
+          Loading
+        </span>
+
       </div>
+
     </header>
 
+
     <section class="hero glass">
-      <div class="hero-copy">
-        <div class="eyebrow">
-          Extension Repository Network
-        </div>
 
-        <h1>
-          Wotaku<br>
-          <span>Archive</span>
-        </h1>
+      <div class="hero-decoration" aria-hidden="true"></div>
 
-        <p>
-          A live visual index of the repositories published through
-          Wotaku. Every discovered entry remains visible. Anime,
-          manga, movies, television, novels, iOS sources and
-          miscellaneous repositories stay in the same catalogue.
-        </p>
+      <div class="eyebrow">
+        Wotaku Extension Index
       </div>
+
+      <h1>
+        EXTENSION
+        <span>REPOSITORY NETWORK</span>
+      </h1>
+
+      <p class="hero-copy">
+        A live view of the repositories and extension indexes discovered
+        from the Wotaku source network. Entries stay available instead
+        of being removed from the interface.
+      </p>
+
+      <div class="hero-actions">
+
+        <a
+          class="action primary"
+          href="https://wotaku.wiki/ext/mihon"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open Wotaku
+        </a>
+
+        <button
+          class="action"
+          id="reloadButton"
+          type="button"
+        >
+          Refresh Feed
+        </button>
+
+      </div>
+
     </section>
 
-    <section class="controls glass">
+
+    <nav
+      class="navigation glass"
+      aria-label="Extension categories"
+    >
+
+      <div
+        class="tab-scroll"
+        id="typeTabs"
+      ></div>
+
+    </nav>
+
+
+    <div
+      class="source-filter"
+      id="sourceFilter"
+      aria-label="Repository source"
+    ></div>
+
+
+    <section class="toolbar glass">
 
       <label class="search">
-        <span class="search-mark"></span>
+
+        <span class="search-label">
+          Search
+        </span>
 
         <input
-          id="search"
+          id="searchInput"
           type="search"
           autocomplete="off"
           spellcheck="false"
           placeholder="Search repositories and extensions"
+          aria-label="Search repositories and extensions"
         >
+
       </label>
 
-      <nav
-        class="filters"
-        id="filters"
-        aria-label="Catalogue filters"
-      ></nav>
+      <div
+        class="feed-status"
+        id="statusText"
+      >
+        Loading live feed
+      </div>
 
     </section>
 
-    <main
-      class="catalog"
-      id="catalog"
-    >
-      <section class="source glass">
-        <div class="index-state">
-          Loading Wotaku source lanes
-        </div>
-      </section>
+
+    <main id="content">
+
+      <div class="empty">
+        Loading repositories and extension indexes
+      </div>
+
     </main>
 
+
     <footer class="footer">
-      WOTAKU SOURCE INDEX · ANYMEX HANDOFF · LIVE DISCOVERY
-      <br>
-      No catalogue entries are removed by rating or content type.
+      Wotaku source data is displayed without NSFW removal.
+      AnymeX handoff uses the repository URL supplied by the live feed.
     </footer>
 
   </div>
+
 </div>
 
+
 <script>
-const API =
-  "https://workerz.youngengolden.workers.dev";
+const API_URL =
+  "https://workerz.youngengolden.workers.dev/api/repos";
 
-const WALLPAPER =
-  "https://files.catbox.moe/5dq2i6.jpeg";
-
-const SOURCE_ORDER = [
-  "mihon",
-  "mangayomi",
-  "ios",
-  "misc"
-];
-
-const FILTERS = [
-  "All",
-  "Anime",
-  "Manga",
-  "Movies",
-  "TV",
-  "Novels",
-  "iOS",
-  "Misc"
-];
+const ANYMEX_SCHEME =
+  "anymex://add-repo?url=";
 
 const state = {
-  entries: [],
-  sources: [],
-  filter: "All",
-  search: "",
-  loaded: 0,
-  indexes: new Map(),
-  pings: new Map()
+  feed:null,
+  repos:[],
+  type:"all",
+  source:"all",
+  search:""
 };
 
-const catalog =
-  document.getElementById("catalog");
+const content =
+  document.getElementById("content");
 
-const search =
-  document.getElementById("search");
+const typeTabs =
+  document.getElementById("typeTabs");
 
-const filters =
-  document.getElementById("filters");
+const sourceFilter =
+  document.getElementById("sourceFilter");
 
-function esc(value){
+const searchInput =
+  document.getElementById("searchInput");
+
+const statusText =
+  document.getElementById("statusText");
+
+const reloadButton =
+  document.getElementById("reloadButton");
+
+const repoMetric =
+  document.getElementById("repoMetric");
+
+const extensionMetric =
+  document.getElementById("extensionMetric");
+
+const feedMetric =
+  document.getElementById("feedMetric");
+
+
+function escapeHtml(value){
+
   return String(value ?? "")
-    .replace(/[&<>"']/g, char => ({
+    .replace(/[&<>"']/g, character => ({
       "&":"&amp;",
       "<":"&lt;",
       ">":"&gt;",
-      '"':"&quot;",
+      "\"":"&quot;",
       "'":"&#39;"
-    }[char]));
+    }[character]));
+
 }
 
-function addToAnymeX(url){
-  return (
-    "anymex://add-repo?url=" +
-    encodeURIComponent(url)
-  );
+
+function escapeAttribute(value){
+
+  return escapeHtml(value)
+    .replace(/`/g,"&#96;");
+
 }
 
-function looksLikeIndex(url){
-  if(!url) return false;
 
-  return (
-    /\.json(?:[?#].*)?$/i.test(url) ||
-    /index/i.test(url) ||
-    /repo/i.test(url)
-  );
-}
+function safeHttpUrl(value){
 
-function categoryMatch(entry){
-  if(state.filter === "All"){
-    return true;
+  try{
+
+    const url =
+      new URL(String(value));
+
+    if(
+      url.protocol !== "https:" &&
+      url.protocol !== "http:"
+    ){
+      return null;
+    }
+
+    return url.href;
+
+  }catch{
+
+    return null;
+
   }
 
-  return entry.category === state.filter;
 }
 
-function searchMatch(entry){
-  if(!state.search){
-    return true;
+
+function anymexUrl(value){
+
+  const safe =
+    safeHttpUrl(value);
+
+  if(!safe){
+    return null;
   }
 
-  const haystack = [
-    entry.name,
-    entry.section,
-    entry.sourceName,
-    entry.category,
-    entry.url
+  return (
+    ANYMEX_SCHEME +
+    encodeURIComponent(safe)
+  );
+
+}
+
+
+function normaliseArray(value){
+
+  if(Array.isArray(value)){
+    return value;
+  }
+
+  if(
+    value &&
+    typeof value === "object"
+  ){
+    return Object.values(value);
+  }
+
+  return [];
+
+}
+
+
+function cleanType(value){
+
+  const text =
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+
+  if(!text){
+    return "other";
+  }
+
+  if(
+    text.includes("anime")
+  ){
+    return "anime";
+  }
+
+  if(
+    text.includes("manga") ||
+    text.includes("manhwa") ||
+    text.includes("manhua") ||
+    text.includes("comic")
+  ){
+    return "manga";
+  }
+
+  if(
+    text.includes("novel") ||
+    text.includes("light novel")
+  ){
+    return "novel";
+  }
+
+  if(
+    text.includes("movie") ||
+    text.includes("film")
+  ){
+    return "movies";
+  }
+
+  if(
+    /\btv\b/.test(text) ||
+    text.includes("television") ||
+    text.includes("series") ||
+    text.includes("show")
+  ){
+    return "tv";
+  }
+
+  return "other";
+
+}
+
+
+function detectType(index, repo){
+
+  const explicit =
+    index?.type ??
+    index?.category ??
+    index?.kind ??
+    "";
+
+  const explicitType =
+    cleanType(explicit);
+
+  if(explicitType !== "other"){
+    return explicitType;
+  }
+
+  const combined = [
+    index?.name,
+    index?.label,
+    index?.title,
+    index?.url,
+    repo?.name,
+    repo?.category,
+    repo?.source
   ]
+    .filter(Boolean)
+    .join(" ");
+
+  return cleanType(combined);
+
+}
+
+
+function detectNsfw(index, repo){
+
+  const combined = [
+    index?.name,
+    index?.label,
+    index?.title,
+    index?.type,
+    index?.url,
+    repo?.name,
+    repo?.category,
+    repo?.source
+  ]
+    .filter(Boolean)
     .join(" ")
     .toLowerCase();
 
-  return haystack.includes(
-    state.search.toLowerCase()
+  return (
+    /\bnsfw\b/.test(combined) ||
+    /\b18\+/.test(combined) ||
+    /\badult\b/.test(combined) ||
+    /\bhentai\b/.test(combined)
   );
+
 }
 
-function filteredEntries(){
-  return state.entries.filter(
-    entry =>
-      categoryMatch(entry) &&
-      searchMatch(entry)
-  );
+
+function sourceName(repo){
+
+  return String(
+    repo?.source ??
+    repo?.platform ??
+    repo?.category ??
+    repo?.section ??
+    repo?.site ??
+    "Unknown"
+  ).trim() || "Unknown";
+
 }
 
-function makeFilters(){
-  filters.innerHTML =
-    FILTERS.map(
-      name => `
-        <button
-          class="filter ${name === "All" ? "active" : ""}"
-          data-filter="${esc(name)}"
-          type="button"
-        >
-          ${esc(name)}
-        </button>
-      `
-    ).join("");
 
-  filters
-    .querySelectorAll(".filter")
-    .forEach(button => {
-      button.addEventListener(
-        "click",
-        () => {
-          state.filter =
-            button.dataset.filter;
+function normaliseRepo(repo, index){
 
-          filters
-            .querySelectorAll(".filter")
-            .forEach(item =>
-              item.classList.toggle(
-                "active",
-                item === button
-              )
-            );
+  const indexes =
+    normaliseArray(repo?.indexes);
 
-          render();
+  const fallbackUrl =
+    safeHttpUrl(
+      repo?.repo ??
+      repo?.github ??
+      repo?.url
+    );
+
+  const normalisedIndexes =
+    indexes
+      .map((indexItem, indexPosition) => {
+
+        const url =
+          safeHttpUrl(
+            indexItem?.url ??
+            indexItem?.repo ??
+            indexItem?.github
+          );
+
+        if(!url){
+          return null;
         }
-      );
+
+        const name =
+          String(
+            indexItem?.name ??
+            indexItem?.label ??
+            indexItem?.title ??
+            indexItem?.type ??
+            `Extension ${indexPosition + 1}`
+          ).trim();
+
+        return {
+          id:
+            `${index}-${indexPosition}-${url}`,
+
+          name,
+
+          url,
+
+          type:
+            detectType(
+              indexItem,
+              repo
+            ),
+
+          nsfw:
+            detectNsfw(
+              indexItem,
+              repo
+            )
+        };
+
+      })
+      .filter(Boolean);
+
+  if(
+    !normalisedIndexes.length &&
+    fallbackUrl
+  ){
+
+    normalisedIndexes.push({
+      id:
+        `${index}-fallback-${fallbackUrl}`,
+
+      name:
+        String(
+          repo?.name ??
+          "Repository"
+        ),
+
+      url:
+        fallbackUrl,
+
+      type:
+        detectType(
+          {},
+          repo
+        ),
+
+      nsfw:
+        detectNsfw(
+          {},
+          repo
+        )
     });
+
+  }
+
+  return {
+    id:
+      String(
+        repo?.id ??
+        repo?.name ??
+        repo?.repo ??
+        repo?.github ??
+        index
+      ),
+
+    name:
+      String(
+        repo?.name ??
+        repo?.title ??
+        repo?.repo ??
+        repo?.github ??
+        `Repository ${index + 1}`
+      ),
+
+    repoUrl:
+      fallbackUrl,
+
+    github:
+      safeHttpUrl(repo?.github),
+
+    source:
+      sourceName(repo),
+
+    indexes:
+      normalisedIndexes
+  };
+
 }
 
-function sourceGroups(){
-  const map = new Map();
 
-  for(const entry of filteredEntries()){
-    if(!map.has(entry.sourceId)){
-      map.set(
-        entry.sourceId,
-        {
-          id:entry.sourceId,
-          name:entry.sourceName,
-          pageUrl:entry.pageUrl,
-          entries:[]
-        }
+function normaliseFeed(data){
+
+  const rawRepos =
+    normaliseArray(
+      data?.repos ??
+      data?.repositories ??
+      data?.data
+    );
+
+  return rawRepos
+    .map(normaliseRepo)
+    .filter(repo => repo.indexes.length);
+
+}
+
+
+function allTypes(){
+
+  return [
+    {
+      id:"all",
+      label:"All"
+    },
+    {
+      id:"anime",
+      label:"Anime"
+    },
+    {
+      id:"manga",
+      label:"Manga"
+    },
+    {
+      id:"novel",
+      label:"Novel"
+    },
+    {
+      id:"movies",
+      label:"Movies"
+    },
+    {
+      id:"tv",
+      label:"TV"
+    },
+    {
+      id:"other",
+      label:"Other"
+    }
+  ];
+
+}
+
+
+function renderTypeTabs(){
+
+  typeTabs.innerHTML =
+    allTypes()
+      .map(item => `
+        <button
+          class="tab ${state.type === item.id ? "active" : ""}"
+          type="button"
+          data-type="${escapeAttribute(item.id)}"
+        >
+          ${escapeHtml(item.label)}
+        </button>
+      `)
+      .join("");
+
+}
+
+
+function renderSourceFilter(){
+
+  const sources =
+    Array.from(
+      new Set(
+        state.repos
+          .map(repo => repo.source)
+          .filter(Boolean)
+      )
+    )
+    .sort(
+      (a,b) =>
+        a.localeCompare(b)
+    );
+
+  const items = [
+    {
+      id:"all",
+      label:"All Sources"
+    },
+    ...sources.map(source => ({
+      id:source,
+      label:source
+    }))
+  ];
+
+  sourceFilter.innerHTML =
+    items
+      .map(item => `
+        <button
+          class="source-chip ${
+            state.source === item.id
+              ? "active"
+              : ""
+          }"
+          type="button"
+          data-source="${escapeAttribute(item.id)}"
+        >
+          ${escapeHtml(item.label)}
+        </button>
+      `)
+      .join("");
+
+}
+
+
+function repoMatches(repo){
+
+  if(
+    state.source !== "all" &&
+    repo.source !== state.source
+  ){
+    return false;
+  }
+
+  const visibleIndexes =
+    repo.indexes.filter(index => {
+
+      if(
+        state.type !== "all" &&
+        index.type !== state.type
+      ){
+        return false;
+      }
+
+      if(!state.search){
+        return true;
+      }
+
+      const searchable = [
+        repo.name,
+        repo.source,
+        index.name,
+        index.type,
+        index.url
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(
+        state.search
       );
+
+    });
+
+  return visibleIndexes.length > 0;
+
+}
+
+
+function visibleIndexes(repo){
+
+  return repo.indexes.filter(index => {
+
+    if(
+      state.type !== "all" &&
+      index.type !== state.type
+    ){
+      return false;
     }
 
-    map
-      .get(entry.sourceId)
-      .entries
-      .push(entry);
-  }
+    if(!state.search){
+      return true;
+    }
 
-  return SOURCE_ORDER
-    .map(id => map.get(id))
-    .filter(Boolean);
+    const searchable = [
+      repo.name,
+      repo.source,
+      index.name,
+      index.type,
+      index.url
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return searchable.includes(
+      state.search
+    );
+
+  });
+
 }
 
-function render(){
-  const groups =
-    sourceGroups();
 
-  if(!groups.length){
-    catalog.innerHTML = `
-      <section class="source glass">
-        <div class="empty">
-          No visible matches.
-        </div>
-      </section>
-    `;
+function typeLabel(type){
 
-    return;
-  }
+  const labels = {
+    anime:"Anime",
+    manga:"Manga",
+    novel:"Novel",
+    movies:"Movies",
+    tv:"TV",
+    other:"Other"
+  };
 
-  catalog.innerHTML =
-    groups.map(group => `
-      <section
-        class="source glass"
-        data-source="${esc(group.id)}"
-      >
-        <div class="source-head">
-          <div>
-            <div class="source-name">
-              ${esc(group.name)}
-            </div>
+  return labels[type] || "Other";
 
-            <div class="source-meta">
-              ${esc(group.pageUrl)}
-            </div>
-          </div>
-
-          <div class="source-count">
-            ${group.entries.length} entries
-          </div>
-        </div>
-
-        <div class="entries">
-          ${group.entries
-            .map(renderEntry)
-            .join("")}
-        </div>
-      </section>
-    `).join("");
-
-  bindEntryActions();
 }
 
-function renderEntry(entry){
-  const safeId =
-    encodeURIComponent(entry.id);
 
-  const ping =
-    state.pings.get(entry.id);
+function renderExtension(index){
 
-  const compatibility =
-    (
-      entry.sourceId === "mihon" ||
-      entry.sourceId === "ios"
-    )
-      ? "Source"
-      : "Source";
+  const addUrl =
+    anymexUrl(index.url);
 
-  const anymex =
-    entry.url
-      ? `
-        <a
-          class="action primary"
-          href="${esc(addToAnymeX(entry.url))}"
-        >
-          Send to AnymeX
-        </a>
-      `
-      : "";
-
-  const install =
-    entry.installUrl
-      ? `
-        <a
-          class="action"
-          href="${esc(entry.installUrl)}"
-        >
-          Original install
-        </a>
-      `
-      : "";
-
-  const inspect =
-    looksLikeIndex(entry.url)
-      ? `
-        <button
-          class="action"
-          type="button"
-          data-action="index"
-          data-id="${safeId}"
-        >
-          Inspect feed
-        </button>
-      `
-      : "";
-
-  const pingAction = `
-    <button
-      class="action"
-      type="button"
-      data-action="ping"
-      data-id="${safeId}"
-    >
-      Ping
-    </button>
-  `;
-
-  const source =
-    `
-      <a
-        class="action"
-        href="${esc(entry.url)}"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Source
-      </a>
-    `;
-
-  const statusBadge =
-    ping
-      ? `
-        <span class="badge ${
-          ping.ok
-            ? "online"
-            : "offline"
-        }">
-          ${ping.ok
-            ? "Online"
-            : "Offline"}
-          ${ping.status
-            ? ` ${esc(ping.status)}`
-            : ""}
-        </span>
-      `
-      : "";
+  const safeUrl =
+    safeHttpUrl(index.url);
 
   return `
-    <article
-      class="entry"
-      data-entry="${safeId}"
-    >
+    <article class="extension">
 
-      <div class="entry-top">
-        <div>
-          <div class="entry-name">
-            ${esc(entry.name)}
-          </div>
+      <div class="extension-info">
 
-          <div class="entry-section">
-            ${esc(entry.section)}
-          </div>
+        <div class="extension-top">
+
+          <span class="extension-name">
+            ${escapeHtml(index.name)}
+          </span>
+
+          <span class="extension-type">
+            ${escapeHtml(typeLabel(index.type))}
+          </span>
+
+          ${
+            index.nsfw
+              ? `
+                <span class="badge nsfw">
+                  NSFW
+                </span>
+              `
+              : ""
+          }
+
         </div>
+
+        <div class="extension-url">
+          ${escapeHtml(index.url)}
+        </div>
+
       </div>
 
-      <div class="badges">
-        <span class="badge">
-          ${esc(entry.category)}
-        </span>
+      <div class="extension-actions">
 
-        <span class="badge">
-          ${esc(entry.sourceName)}
-        </span>
+        ${
+          safeUrl
+            ? `
+              <a
+                class="mini-action"
+                href="${escapeAttribute(safeUrl)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open
+              </a>
+            `
+            : ""
+        }
 
-        ${statusBadge}
+        ${
+          addUrl
+            ? `
+              <a
+                class="mini-action add"
+                href="${escapeAttribute(addUrl)}"
+              >
+                Add
+              </a>
+            `
+            : ""
+        }
+
       </div>
 
-      <div class="actions">
-        ${anymex}
-        ${install}
-        ${inspect}
-        ${pingAction}
-        ${source}
+    </article>
+  `;
+
+}
+
+
+function renderRepo(repo){
+
+  const indexes =
+    visibleIndexes(repo);
+
+  if(!indexes.length){
+    return "";
+  }
+
+  const hasNsfw =
+    indexes.some(
+      index => index.nsfw
+    );
+
+  const repoOpen =
+    safeHttpUrl(repo.repoUrl);
+
+  const githubOpen =
+    safeHttpUrl(repo.github);
+
+  const addRepo =
+    anymexUrl(
+      repo.repoUrl ??
+      repo.github
+    );
+
+  return `
+    <article class="repo-card glass">
+
+      <div class="repo-head">
+
+        <div>
+
+          <div class="repo-title">
+            ${escapeHtml(repo.name)}
+          </div>
+
+          <div class="repo-source">
+            ${escapeHtml(repo.source)}
+            ·
+            ${indexes.length}
+            ${indexes.length === 1 ? "index" : "indexes"}
+          </div>
+
+        </div>
+
+        <div class="repo-badges">
+
+          <span class="badge">
+            ${escapeHtml(repo.source)}
+          </span>
+
+          ${
+            hasNsfw
+              ? `
+                <span class="badge nsfw">
+                  NSFW
+                </span>
+              `
+              : ""
+          }
+
+        </div>
+
       </div>
 
       ${
-        looksLikeIndex(entry.url)
+        repo.repoUrl
           ? `
-            <div
-              class="index-panel"
-              data-index-panel="${safeId}"
-            >
-              <div class="index-state">
-                Feed closed
-              </div>
+            <div class="repo-url">
+              ${escapeHtml(repo.repoUrl)}
             </div>
           `
           : ""
       }
 
+      <div class="extension-list">
+
+        ${indexes
+          .map(renderExtension)
+          .join("")}
+
+      </div>
+
+      <div class="hero-actions">
+
+        ${
+          repoOpen
+            ? `
+              <a
+                class="action"
+                href="${escapeAttribute(repoOpen)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open Repository
+              </a>
+            `
+            : ""
+        }
+
+        ${
+          githubOpen &&
+          githubOpen !== repoOpen
+            ? `
+              <a
+                class="action"
+                href="${escapeAttribute(githubOpen)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                GitHub
+              </a>
+            `
+            : ""
+        }
+
+        ${
+          addRepo
+            ? `
+              <a
+                class="action primary"
+                href="${escapeAttribute(addRepo)}"
+              >
+                Add Repository
+              </a>
+            `
+            : ""
+        }
+
+      </div>
+
     </article>
   `;
+
 }
 
-function bindEntryActions(){
-  catalog
-    .querySelectorAll(
-      '[data-action="ping"]'
-    )
-    .forEach(button => {
-      button.addEventListener(
-        "click",
-        () => pingEntry(
-          decodeURIComponent(
-            button.dataset.id
-          )
-        )
-      );
-    });
 
-  catalog
-    .querySelectorAll(
-      '[data-action="index"]'
-    )
-    .forEach(button => {
-      button.addEventListener(
-        "click",
-        () => toggleIndex(
-          decodeURIComponent(
-            button.dataset.id
-          )
-        )
-      );
-    });
-}
+function render(){
 
-function findEntry(id){
-  return state.entries.find(
-    entry => entry.id === id
-  );
-}
+  renderTypeTabs();
+  renderSourceFilter();
 
-async function pingEntry(id){
-  const entry =
-    findEntry(id);
+  if(!state.repos.length){
 
-  if(!entry) return;
-
-  state.pings.set(
-    id,
-    {
-      ok:false,
-      status:0,
-      statusText:"Checking"
-    }
-  );
-
-  render();
-
-  try{
-    const result =
-      await fetch(
-        API +
-        "/api/ping?url=" +
-        encodeURIComponent(entry.url),
-        {
-          cache:"no-store"
-        }
-      );
-
-    const data =
-      await result.json();
-
-    state.pings.set(id,data);
-  }catch(error){
-    state.pings.set(
-      id,
-      {
-        ok:false,
-        status:0,
-        statusText:
-          String(
-            error?.message ||
-            error
-          )
-      }
-    );
-  }
-
-  render();
-}
-
-function normalizeIndex(data){
-  if(Array.isArray(data)){
-    return data;
-  }
-
-  if(
-    data &&
-    typeof data === "object"
-  ){
-    for(
-      const key of [
-        "extensions",
-        "sources",
-        "items",
-        "results",
-        "data"
-      ]
-    ){
-      if(
-        Array.isArray(
-          data[key]
-        )
-      ){
-        return data[key];
-      }
-    }
-  }
-
-  return [];
-}
-
-function extensionName(item){
-  if(typeof item === "string"){
-    return item;
-  }
-
-  return (
-    item?.name ||
-    item?.title ||
-    item?.displayName ||
-    item?.id ||
-    "Unnamed extension"
-  );
-}
-
-function extensionMeta(item){
-  if(typeof item === "string"){
-    return "";
-  }
-
-  return [
-    item?.lang,
-    item?.language,
-    item?.version,
-    item?.typeSource,
-    item?.appMinVerReq
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function extensionIcon(item){
-  if(
-    item &&
-    typeof item === "object" &&
-    item.iconUrl
-  ){
-    return item.iconUrl;
-  }
-
-  return "";
-}
-
-function extensionNSFW(item){
-  return (
-    item &&
-    typeof item === "object" &&
-    (
-      item.isNsfw === true ||
-      item.nsfw === true
-    )
-  );
-}
-
-async function toggleIndex(id){
-  const entry =
-    findEntry(id);
-
-  if(!entry) return;
-
-  const panel =
-    document.querySelector(
-      `[data-index-panel="${encodeURIComponent(id)}"]`
-    );
-
-  if(!panel) return;
-
-  if(
-    panel.classList.contains("open")
-  ){
-    panel.classList.remove("open");
-    return;
-  }
-
-  panel.classList.add("open");
-
-  const cached =
-    state.indexes.get(id);
-
-  if(cached){
-    renderIndexPanel(
-      panel,
-      cached
-    );
-
-    return;
-  }
-
-  panel.innerHTML = `
-    <div class="index-state">
-      Reading extension feed
-    </div>
-  `;
-
-  try{
-    const result =
-      await fetch(
-        API +
-        "/api/index?url=" +
-        encodeURIComponent(
-          entry.url
-        ),
-        {
-          cache:"no-store"
-        }
-      );
-
-    if(!result.ok){
-      throw new Error(
-        `HTTP ${result.status}`
-      );
-    }
-
-    const data =
-      await result.json();
-
-    const items =
-      normalizeIndex(data);
-
-    state.indexes.set(
-      id,
-      items
-    );
-
-    renderIndexPanel(
-      panel,
-      items
-    );
-  }catch(error){
-    panel.innerHTML = `
-      <div class="index-state">
-        Feed could not be read.
-        ${esc(
-          error?.message ||
-          error
-        )}
-      </div>
-    `;
-  }
-}
-
-function renderIndexPanel(
-  panel,
-  items
-){
-  if(!items.length){
-    panel.innerHTML = `
-      <div class="index-state">
-        The endpoint responded, but no
-        extension array was found.
+    content.innerHTML = `
+      <div class="empty error">
+        The live repository feed returned no repositories.
       </div>
     `;
 
     return;
   }
 
-  panel.innerHTML = `
-    <div class="index-state">
-      ${items.length}
-      extension entries discovered
-    </div>
+  const visibleRepos =
+    state.repos
+      .filter(repoMatches);
 
-    <div
-      class="extension-list"
-      style="margin-top:9px"
-    >
-      ${
-        items.map(item => {
-          const icon =
-            extensionIcon(item);
+  if(!visibleRepos.length){
 
-          const nsfw =
-            extensionNSFW(item);
+    content.innerHTML = `
+      <div class="empty">
+        No matching extension was found in
+        the current view.
+      </div>
+    `;
 
-          return `
-            <div class="extension">
+    return;
+  }
 
-              ${
-                icon
-                  ? `
-                    <img
-                      class="extension-icon"
-                      src="${esc(icon)}"
-                      alt=""
-                      loading="lazy"
-                      onerror="this.style.display='none'"
-                    >
-                  `
-                  : `
-                    <div
-                      class="extension-icon"
-                    ></div>
-                  `
-              }
+  const grouped =
+    new Map();
 
-              <div class="extension-main">
+  visibleRepos.forEach(repo => {
 
-                <div class="extension-name">
-                  ${esc(
-                    extensionName(item)
-                  )}
-                </div>
+    if(!grouped.has(repo.source)){
+      grouped.set(
+        repo.source,
+        []
+      );
+    }
 
-                <div class="extension-meta">
-                  ${esc(
-                    extensionMeta(item)
-                  )}
-                </div>
+    grouped
+      .get(repo.source)
+      .push(repo);
 
-              </div>
+  });
 
-              ${
-                nsfw
-                  ? `
-                    <span class="badge nsfw">
-                      NSFW
-                    </span>
-                  `
-                  : ""
-              }
+  let html = "";
 
+  grouped.forEach(
+    (repos, source) => {
+
+      const extensionCount =
+        repos.reduce(
+          (total, repo) =>
+            total +
+            visibleIndexes(repo).length,
+          0
+        );
+
+      html += `
+        <section
+          class="source-section"
+        >
+
+          <div class="section-heading">
+
+            <div class="section-name">
+              ${escapeHtml(source)}
             </div>
-          `;
-        }).join("")
-      }
-    </div>
-  `;
+
+            <div class="section-meta">
+              ${repos.length}
+              ${repos.length === 1 ? "repository" : "repositories"}
+              /
+              ${extensionCount}
+              ${extensionCount === 1 ? "extension" : "extensions"}
+            </div>
+
+          </div>
+
+          <div class="repo-grid">
+
+            ${repos
+              .map(renderRepo)
+              .join("")}
+
+          </div>
+
+        </section>
+      `;
+
+    }
+  );
+
+  content.innerHTML = html;
+
+  updateMetrics();
+
 }
 
-async function loadSources(){
-  catalog.innerHTML = `
-    <section class="source glass">
-      <div class="index-state">
-        Reading Wotaku source lanes
-      </div>
-    </section>
-  `;
 
-  const results =
-    await Promise.all(
-      SOURCE_ORDER.map(
-        async id => {
-          try{
-            const result =
-              await fetch(
-                API +
-                "/api/source?source=" +
-                encodeURIComponent(id),
-                {
-                  cache:"no-store",
-                  headers:{
-                    "Accept":
-                      "application/json"
-                  }
-                }
-              );
+function updateMetrics(){
 
-            if(!result.ok){
-              throw new Error(
-                `HTTP ${result.status}`
-              );
-            }
+  const repositoryCount =
+    state.repos.length;
 
-            return await result.json();
-          }catch(error){
-            return {
-              source:{
-                id,
-                name:id
-              },
-              entries:[],
-              error:
-                String(
-                  error?.message ||
-                  error
-                )
-            };
+  const extensionCount =
+    state.repos.reduce(
+      (total, repo) =>
+        total + repo.indexes.length,
+      0
+    );
+
+  repoMetric.textContent =
+    `Repositories ${repositoryCount}`;
+
+  extensionMetric.textContent =
+    `Extensions ${extensionCount}`;
+
+}
+
+
+async function loadFeed(){
+
+  statusText.textContent =
+    "Loading live feed";
+
+  feedMetric.textContent =
+    "Loading";
+
+  reloadButton.disabled = true;
+
+  try{
+
+    const response =
+      await fetch(
+        API_URL,
+        {
+          method:"GET",
+          cache:"no-store",
+          headers:{
+            Accept:"application/json"
           }
         }
-      )
-    );
+      );
 
-  state.sources =
-    results.map(
-      result => result.source
-    );
+    if(!response.ok){
 
-  state.entries =
-    results.flatMap(
-      result => result.entries || []
-    );
+      throw new Error(
+        `HTTP ${response.status}`
+      );
 
-  state.loaded =
-    results.filter(
-      result =>
-        !result.error
-    ).length;
+    }
 
-  render();
-}
+    const data =
+      await response.json();
 
-search.addEventListener(
-  "input",
-  event => {
-    state.search =
-      event.target.value.trim();
+    state.feed =
+      data;
+
+    state.repos =
+      normaliseFeed(data);
+
+    statusText.textContent =
+      "Live feed ready";
+
+    feedMetric.textContent =
+      "Live";
 
     render();
+
+  }catch(error){
+
+    console.error(error);
+
+    state.feed = null;
+    state.repos = [];
+
+    statusText.textContent =
+      "Feed unavailable";
+
+    feedMetric.textContent =
+      "Error";
+
+    content.innerHTML = `
+      <div class="empty error">
+        The live Wotaku repository feed
+        could not be loaded.
+        <br>
+        <br>
+        ${escapeHtml(error.message)}
+      </div>
+    `;
+
+  }finally{
+
+    reloadButton.disabled = false;
+
   }
-);
 
-makeFilters();
-
-loadSources();
-
-const root =
-  document.documentElement;
-
-let targetX = 0;
-let targetY = 0;
-let currentX = 0;
-let currentY = 0;
-
-function setPointer(x,y){
-  const width =
-    window.innerWidth || 1;
-
-  const height =
-    window.innerHeight || 1;
-
-  targetX =
-    ((x / width) - .5) * 2;
-
-  targetY =
-    ((y / height) - .5) * 2;
 }
 
-window.addEventListener(
-  "pointermove",
-  event => {
-    setPointer(
-      event.clientX,
-      event.clientY
-    );
-  },
-  {
-    passive:true
-  }
-);
 
-window.addEventListener(
-  "touchmove",
+typeTabs.addEventListener(
+  "click",
   event => {
-    const touch =
-      event.touches[0];
 
-    if(touch){
-      setPointer(
-        touch.clientX,
-        touch.clientY
+    const button =
+      event.target.closest(
+        "[data-type]"
       );
+
+    if(!button){
+      return;
     }
-  },
-  {
-    passive:true
+
+    state.type =
+      button.dataset.type;
+
+    render();
+
   }
 );
 
-function animate(){
-  currentX +=
-    (targetX - currentX) * .055;
 
-  currentY +=
-    (targetY - currentY) * .055;
+sourceFilter.addEventListener(
+  "click",
+  event => {
 
-  const rotationY =
-    currentX * 2.8;
+    const button =
+      event.target.closest(
+        "[data-source]"
+      );
 
-  const rotationX =
-    currentY * -2.8;
+    if(!button){
+      return;
+    }
 
-  root.style.setProperty(
-    "--rx",
-    `${rotationX}deg`
-  );
+    state.source =
+      button.dataset.source;
 
-  root.style.setProperty(
-    "--ry",
-    `${rotationY}deg`
-  );
+    render();
 
-  root.style.setProperty(
-    "--mx",
-    `${currentX * 13}`
-  );
+  }
+);
 
-  root.style.setProperty(
-    "--my",
-    `${currentY * 13}`
-  );
 
-  requestAnimationFrame(
-    animate
-  );
-}
+searchInput.addEventListener(
+  "input",
+  event => {
 
-animate();
+    state.search =
+      event.target.value
+        .trim()
+        .toLowerCase();
+
+    render();
+
+  }
+);
+
+
+reloadButton.addEventListener(
+  "click",
+  () => {
+    loadFeed();
+  }
+);
+
+
+loadFeed();
 </script>
 
 </body>
