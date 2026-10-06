@@ -3,331 +3,1892 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08090d">
+<meta name="color-scheme" content="dark">
 
-<title>Wotaku → AnymeX</title>
+<title>Wotaku Archive</title>
+
+<link rel="preload"
+      as="image"
+      href="https://files.catbox.moe/5dq2i6.jpeg">
 
 <style>
+:root{
+  --ink:#050608;
+  --paper:#e9edf2;
+  --muted:#8c939d;
+  --line:rgba(255,255,255,.16);
+  --glass:rgba(12,15,21,.48);
+  --glass-light:rgba(255,255,255,.055);
+  --shadow:rgba(0,0,0,.58);
+  --cyan:#a8dfff;
+  --blue:#5d9fff;
+  --violet:#bca7ff;
+  --pink:#ffb7e7;
+  --green:#a8e6c1;
+  --red:#ff9b9b;
+  --radius:22px;
+  --mx:0;
+  --my:0;
+  --rx:0deg;
+  --ry:0deg;
+}
+
+*{
+  box-sizing:border-box;
+}
+
+html{
+  min-height:100%;
+  background:#050608;
+}
+
 body{
   margin:0;
-  background:#0b0b0f;
-  color:#f5f5f7;
-  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif;
-  padding:24px 16px;
+  min-height:100vh;
+  overflow-x:hidden;
+  color:var(--paper);
+  background:#050608;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
 }
 
-main{
-  max-width:760px;
-  margin:auto;
+button,
+input{
+  font:inherit;
 }
 
-h1{
-  font-size:27px;
-  margin:0 0 6px;
+button,
+a{
+  -webkit-tap-highlight-color:transparent;
 }
 
-p{
-  color:#9b9ba3;
-  line-height:1.45;
+.wallpaper{
+  position:fixed;
+  inset:-3%;
+  width:106%;
+  height:106%;
+  z-index:-8;
+  object-fit:cover;
+  object-position:center;
+  image-rendering:auto;
+  transform:
+    translate3d(
+      calc(var(--mx) * -1px),
+      calc(var(--my) * -1px),
+      0
+    )
+    scale(1.035);
+  filter:
+    grayscale(.08)
+    contrast(1.08)
+    brightness(.55)
+    saturate(.78);
+  will-change:transform;
 }
 
-.status{
-  margin:16px 0;
-  padding:12px;
-  border:1px solid #292931;
-  border-radius:12px;
-  color:#aaa;
+.wallpaper-shade{
+  position:fixed;
+  inset:0;
+  z-index:-7;
+  pointer-events:none;
+  background:
+    radial-gradient(
+      ellipse at 50% 20%,
+      rgba(92,145,255,.18),
+      transparent 40%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(3,4,7,.08),
+      rgba(3,4,7,.55) 70%,
+      rgba(3,4,7,.88)
+    );
 }
 
-.repo{
-  background:#15151b;
-  border:1px solid #292931;
-  border-radius:16px;
-  padding:15px;
-  margin:10px 0;
+.halftone{
+  position:fixed;
+  inset:0;
+  z-index:-6;
+  pointer-events:none;
+  opacity:.13;
+  background-image:
+    radial-gradient(
+      circle,
+      rgba(255,255,255,.65) 0 1px,
+      transparent 1.25px
+    );
+  background-size:5px 5px;
+  mix-blend-mode:screen;
 }
 
-.row{
+.scanlines{
+  position:fixed;
+  inset:0;
+  z-index:20;
+  pointer-events:none;
+  opacity:.06;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0,
+      transparent 3px,
+      rgba(255,255,255,.65) 4px,
+      transparent 5px
+    );
+}
+
+.noise{
+  position:fixed;
+  inset:-50%;
+  z-index:21;
+  pointer-events:none;
+  opacity:.035;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
+  animation:noiseShift .23s steps(2) infinite;
+}
+
+@keyframes noiseShift{
+  0%{transform:translate3d(0,0,0)}
+  25%{transform:translate3d(2%,1%,0)}
+  50%{transform:translate3d(-1%,2%,0)}
+  75%{transform:translate3d(1%,-2%,0)}
+  100%{transform:translate3d(0,0,0)}
+}
+
+.scene{
+  min-height:100vh;
+  perspective:1600px;
+  perspective-origin:50% 40%;
+  padding:
+    max(22px,env(safe-area-inset-top))
+    max(16px,env(safe-area-inset-right))
+    max(30px,env(safe-area-inset-bottom))
+    max(16px,env(safe-area-inset-left));
+}
+
+.world{
+  width:min(1180px,100%);
+  margin:0 auto;
+  transform-style:preserve-3d;
+  transform:
+    rotateX(var(--rx))
+    rotateY(var(--ry))
+    translateZ(0);
+  transition:transform .16s ease-out;
+  will-change:transform;
+}
+
+.topbar{
   display:flex;
   align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:10px 4px 20px;
+  transform:translateZ(55px);
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.star{
+  width:27px;
+  height:27px;
+  flex:none;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,.95),
+      rgba(164,205,255,.55)
+    );
+  clip-path:
+    polygon(
+      50% 0%,
+      61% 36%,
+      100% 50%,
+      61% 64%,
+      50% 100%,
+      39% 64%,
+      0% 50%,
+      39% 36%
+    );
+  filter:
+    drop-shadow(0 0 10px rgba(145,198,255,.4));
+}
+
+.brand-title{
+  font-family:
+    "Arial Narrow",
+    "Helvetica Neue",
+    sans-serif;
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:.26em;
+  text-transform:uppercase;
+}
+
+.brand-sub{
+  margin-top:4px;
+  color:var(--muted);
+  font-size:10px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+.top-status{
+  color:#c6ccd5;
+  font-size:10px;
+  letter-spacing:.15em;
+  text-transform:uppercase;
+  text-align:right;
+}
+
+.top-status strong{
+  color:#fff;
+  font-weight:700;
+}
+
+.hero{
+  position:relative;
+  overflow:hidden;
+  padding:clamp(28px,6vw,72px);
+  min-height:390px;
+  display:flex;
+  align-items:flex-end;
+  transform:
+    translateZ(75px)
+    rotateX(calc(var(--ry) * -.12))
+    rotateY(calc(var(--rx) * .12));
+}
+
+.glass{
+  position:relative;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255,255,255,.075),
+      rgba(255,255,255,.018) 45%,
+      rgba(0,0,0,.28)
+    ),
+    var(--glass);
+  border:1px solid var(--line);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.23),
+    inset 0 0 45px rgba(255,255,255,.035),
+    0 35px 90px var(--shadow),
+    0 8px 30px rgba(0,0,0,.32);
+  backdrop-filter:
+    blur(25px)
+    saturate(1.4)
+    contrast(1.04);
+  -webkit-backdrop-filter:
+    blur(25px)
+    saturate(1.4)
+    contrast(1.04);
+}
+
+.glass::before{
+  content:"";
+  position:absolute;
+  inset:1px;
+  border-radius:inherit;
+  pointer-events:none;
+  background:
+    linear-gradient(
+      120deg,
+      rgba(255,255,255,.13),
+      transparent 17%,
+      transparent 75%,
+      rgba(255,255,255,.045)
+    );
+  opacity:.8;
+}
+
+.glass::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+  box-shadow:
+    inset 0 0 1px 1px rgba(255,255,255,.22),
+    inset 0 0 20px rgba(255,255,255,.035);
+}
+
+.hero::before{
+  content:"";
+  position:absolute;
+  width:300px;
+  height:300px;
+  right:-80px;
+  top:-120px;
+  border-radius:50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(117,171,255,.22),
+      transparent 68%
+    );
+  filter:blur(12px);
+  transform:translateZ(90px);
+}
+
+.hero-copy{
+  position:relative;
+  z-index:2;
+  max-width:740px;
+}
+
+.eyebrow{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:17px;
+  color:#b8c5d7;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:10px;
+  letter-spacing:.19em;
+  text-transform:uppercase;
+}
+
+.eyebrow::before{
+  content:"";
+  width:28px;
+  height:1px;
+  background:#c8dfff;
+  box-shadow:0 0 12px rgba(170,211,255,.8);
+}
+
+.hero h1{
+  margin:0;
+  max-width:850px;
+  font-family:
+    "Arial Narrow",
+    "Helvetica Neue",
+    sans-serif;
+  font-size:clamp(48px,9vw,108px);
+  line-height:.82;
+  letter-spacing:-.07em;
+  font-weight:800;
+  text-transform:uppercase;
+  color:#f4f7fb;
+  text-shadow:
+    0 2px 0 rgba(255,255,255,.15),
+    10px 14px 45px rgba(0,0,0,.6);
+}
+
+.hero h1 span{
+  color:transparent;
+  -webkit-text-stroke:1px rgba(222,235,255,.75);
+  text-shadow:none;
+}
+
+.hero p{
+  max-width:650px;
+  margin:25px 0 0;
+  color:#b6bec9;
+  font-size:14px;
+  line-height:1.75;
+}
+
+.controls{
+  margin-top:20px;
+  padding:13px;
+  display:grid;
+  gap:12px;
+  transform:translateZ(50px);
+}
+
+.search{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-height:50px;
+  padding:0 17px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:16px;
+  background:rgba(0,0,0,.24);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.08),
+    0 12px 30px rgba(0,0,0,.18);
+}
+
+.search-mark{
+  width:12px;
+  height:12px;
+  border:1px solid #dce8f8;
+  border-radius:50%;
+  position:relative;
+  flex:none;
+}
+
+.search-mark::after{
+  content:"";
+  position:absolute;
+  width:5px;
+  height:1px;
+  right:-4px;
+  bottom:-2px;
+  background:#dce8f8;
+  transform:rotate(45deg);
+}
+
+.search input{
+  width:100%;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#fff;
+  font-size:14px;
+}
+
+.search input::placeholder{
+  color:#747b86;
+}
+
+.filters{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  padding-bottom:1px;
+}
+
+.filters::-webkit-scrollbar{
+  display:none;
+}
+
+.filter{
+  flex:none;
+  cursor:pointer;
+  border:1px solid rgba(255,255,255,.13);
+  background:rgba(255,255,255,.025);
+  color:#929aa5;
+  padding:10px 13px;
+  border-radius:12px;
+  font-size:10px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  transition:
+    color .2s ease,
+    background .2s ease,
+    border-color .2s ease,
+    transform .2s ease;
+}
+
+.filter:hover{
+  transform:translateY(-2px);
+  color:#fff;
+}
+
+.filter.active{
+  color:#071019;
+  background:#dcecff;
+  border-color:#dcecff;
+  box-shadow:
+    0 5px 22px rgba(160,205,255,.24);
+}
+
+.catalog{
+  margin-top:20px;
+  display:grid;
+  gap:14px;
+  transform-style:preserve-3d;
+}
+
+.source{
+  padding:19px;
+  transform:
+    translateZ(35px)
+    rotateX(calc(var(--ry) * -.05))
+    rotateY(calc(var(--rx) * .05));
+  transition:transform .28s ease, border-color .28s ease;
+}
+
+.source:hover{
+  transform:
+    translateZ(48px)
+    rotateX(1deg)
+    rotateY(-1deg);
+  border-color:rgba(213,231,255,.28);
+}
+
+.source-head{
+  display:flex;
+  justify-content:space-between;
+  gap:15px;
+  align-items:flex-start;
+  margin-bottom:15px;
+}
+
+.source-name{
+  font-size:18px;
+  font-weight:760;
+  letter-spacing:-.025em;
+}
+
+.source-meta{
+  margin-top:5px;
+  color:#7e8792;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:10px;
+  letter-spacing:.06em;
+}
+
+.source-count{
+  color:#b9c8da;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:10px;
+  white-space:nowrap;
+}
+
+.entries{
+  display:grid;
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(270px,1fr)
+    );
+  gap:10px;
+}
+
+.entry{
+  position:relative;
+  overflow:hidden;
+  padding:15px;
+  min-height:145px;
+  border:1px solid rgba(255,255,255,.095);
+  border-radius:17px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255,255,255,.055),
+      rgba(0,0,0,.17)
+    );
+  transform-style:preserve-3d;
+  transition:
+    transform .25s ease,
+    border-color .25s ease,
+    background .25s ease;
+}
+
+.entry:hover{
+  transform:
+    translate3d(0,-4px,24px)
+    rotateX(1deg)
+    rotateY(-1deg);
+  border-color:rgba(215,232,255,.26);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255,255,255,.075),
+      rgba(0,0,0,.18)
+    );
+}
+
+.entry::before{
+  content:"";
+  position:absolute;
+  width:100px;
+  height:100px;
+  right:-50px;
+  top:-50px;
+  border-radius:50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(151,196,255,.12),
+      transparent 70%
+    );
+  pointer-events:none;
+}
+
+.entry-top{
+  display:flex;
+  align-items:flex-start;
   justify-content:space-between;
   gap:12px;
 }
 
-.name{
-  font-size:17px;
-  font-weight:650;
+.entry-name{
+  font-size:15px;
+  font-weight:720;
+  line-height:1.25;
 }
 
-.kind{
-  display:inline-block;
-  margin-top:9px;
-  margin-right:6px;
-  padding:5px 8px;
+.entry-section{
+  margin-top:4px;
+  color:#717985;
+  font-size:10px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.badges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  margin-top:12px;
+}
+
+.badge{
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.035);
+  color:#969faa;
+  padding:5px 7px;
   border-radius:8px;
-  background:#24242c;
-  color:#aaa;
-  font-size:12px;
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
 }
 
-.btn{
-  display:inline-block;
-  background:#fff;
-  color:#08080a;
+.badge.nsfw{
+  color:#ffb2c8;
+  border-color:rgba(255,142,177,.28);
+}
+
+.badge.online{
+  color:#b9e8ce;
+  border-color:rgba(144,220,177,.24);
+}
+
+.badge.offline{
+  color:#ffb0b0;
+  border-color:rgba(255,120,120,.24);
+}
+
+.actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-top:15px;
+}
+
+.action{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.13);
+  background:rgba(255,255,255,.045);
+  color:#d8dee7;
+  border-radius:10px;
+  padding:8px 10px;
+  cursor:pointer;
   text-decoration:none;
-  font-weight:650;
-  border-radius:11px;
-  padding:10px 13px;
+  font-size:10px;
+  letter-spacing:.04em;
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    background .18s ease,
+    color .18s ease;
+}
+
+.action:hover{
+  transform:translateY(-2px);
+  border-color:rgba(218,235,255,.35);
+  background:rgba(255,255,255,.09);
+  color:#fff;
+}
+
+.action.primary{
+  color:#06101a;
+  background:#d9eaff;
+  border-color:#d9eaff;
+  font-weight:760;
+}
+
+.action.primary:hover{
+  background:#fff;
+}
+
+.index-panel{
+  display:none;
+  margin-top:13px;
+  padding-top:13px;
+  border-top:1px solid rgba(255,255,255,.09);
+}
+
+.index-panel.open{
+  display:block;
+}
+
+.extension-list{
+  display:grid;
+  gap:7px;
+}
+
+.extension{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:9px;
+  border:1px solid rgba(255,255,255,.07);
+  background:rgba(0,0,0,.15);
+  border-radius:12px;
+}
+
+.extension-icon{
+  width:30px;
+  height:30px;
+  flex:none;
+  border-radius:8px;
+  object-fit:cover;
+  background:#11141a;
+  border:1px solid rgba(255,255,255,.1);
+}
+
+.extension-main{
+  min-width:0;
+  flex:1;
+}
+
+.extension-name{
+  color:#e4e8ee;
+  font-size:12px;
+  font-weight:680;
+}
+
+.extension-meta{
+  margin-top:3px;
+  color:#707883;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:9px;
+  overflow:hidden;
+  text-overflow:ellipsis;
   white-space:nowrap;
 }
 
-.sub{
-  font-size:11px;
-  color:#70707a;
-  word-break:break-all;
-  margin-top:8px;
+.index-state{
+  color:#7e8791;
+  font-size:10px;
+  line-height:1.5;
 }
 
-.error{
-  color:#ff8d8d;
-  border-color:#542626;
+.footer{
+  padding:35px 5px 10px;
+  color:#646b75;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:9px;
+  line-height:1.8;
+  text-align:center;
+  letter-spacing:.06em;
+  transform:translateZ(25px);
 }
 
-@media(max-width:600px){
-  .row{
-    align-items:flex-start;
-    flex-direction:column;
+.hidden{
+  display:none !important;
+}
+
+.empty{
+  padding:50px 20px;
+  text-align:center;
+  color:#8b929c;
+}
+
+@media(max-width:700px){
+  .scene{
+    padding-top:
+      max(12px,env(safe-area-inset-top));
   }
 
-  .btn{
-    width:100%;
-    text-align:center;
-    padding:12px 0;
+  .topbar{
+    padding-bottom:13px;
+  }
+
+  .top-status{
+    display:none;
+  }
+
+  .hero{
+    min-height:430px;
+    padding:25px;
+  }
+
+  .hero h1{
+    font-size:clamp(48px,16vw,82px);
+  }
+
+  .hero p{
+    font-size:13px;
+  }
+
+  .entries{
+    grid-template-columns:1fr;
+  }
+
+  .source{
+    padding:14px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,
+  *::before,
+  *::after{
+    animation:none !important;
+    transition:none !important;
+    scroll-behavior:auto !important;
+  }
+
+  .world{
+    transform:none !important;
+  }
+
+  .wallpaper{
+    transform:scale(1.035) !important;
   }
 }
 </style>
+
+<svg
+  width="0"
+  height="0"
+  aria-hidden="true"
+  style="position:absolute"
+>
+  <defs>
+    <filter
+      id="liquid-distortion"
+      x="-20%"
+      y="-20%"
+      width="140%"
+      height="140%"
+      color-interpolation-filters="sRGB"
+    >
+      <feTurbulence
+        type="fractalNoise"
+        baseFrequency=".018 .028"
+        numOctaves="2"
+        seed="19"
+        result="noise"
+      />
+
+      <feDisplacementMap
+        in="SourceGraphic"
+        in2="noise"
+        scale="12"
+        xChannelSelector="R"
+        yChannelSelector="G"
+        result="distorted"
+      />
+
+      <feGaussianBlur
+        in="distorted"
+        stdDeviation=".25"
+      />
+    </filter>
+  </defs>
+</svg>
 </head>
 
 <body>
 
-<main>
+<img
+  class="wallpaper"
+  src="https://files.catbox.moe/5dq2i6.jpeg"
+  alt=""
+  draggable="false"
+>
 
-<h1>Wotaku → AnymeX</h1>
+<div class="wallpaper-shade"></div>
+<div class="halftone"></div>
+<div class="scanlines"></div>
+<div class="noise"></div>
 
-<p>
-This page asks the server for the current repositories listed by Wotaku,
-then creates AnymeX handoff links for the discovered indexes.
-</p>
+<div class="scene">
+  <div class="world" id="world">
 
-<div id="status" class="status">
-Loading current repositories…
+    <header class="topbar">
+      <div class="brand">
+        <div class="star"></div>
+
+        <div>
+          <div class="brand-title">
+            Wotaku Archive
+          </div>
+
+          <div class="brand-sub">
+            AnymeX source interface
+          </div>
+        </div>
+      </div>
+
+      <div class="top-status">
+        Four source lanes<br>
+        <strong>Unfiltered catalogue</strong>
+      </div>
+    </header>
+
+    <section class="hero glass">
+      <div class="hero-copy">
+        <div class="eyebrow">
+          Extension Repository Network
+        </div>
+
+        <h1>
+          Wotaku<br>
+          <span>Archive</span>
+        </h1>
+
+        <p>
+          A live visual index of the repositories published through
+          Wotaku. Every discovered entry remains visible. Anime,
+          manga, movies, television, novels, iOS sources and
+          miscellaneous repositories stay in the same catalogue.
+        </p>
+      </div>
+    </section>
+
+    <section class="controls glass">
+
+      <label class="search">
+        <span class="search-mark"></span>
+
+        <input
+          id="search"
+          type="search"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Search repositories and extensions"
+        >
+      </label>
+
+      <nav
+        class="filters"
+        id="filters"
+        aria-label="Catalogue filters"
+      ></nav>
+
+    </section>
+
+    <main
+      class="catalog"
+      id="catalog"
+    >
+      <section class="source glass">
+        <div class="index-state">
+          Loading Wotaku source lanes
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      WOTAKU SOURCE INDEX · ANYMEX HANDOFF · LIVE DISCOVERY
+      <br>
+      No catalogue entries are removed by rating or content type.
+    </footer>
+
+  </div>
 </div>
 
-<div id="repos"></div>
-
-</main>
-
 <script>
-
 const API =
-  "https://workerz.youngengolden.workers.dev/api/repos";
+  "https://workerz.youngengolden.workers.dev";
 
+const WALLPAPER =
+  "https://files.catbox.moe/5dq2i6.jpeg";
 
-function addLink(url){
+const SOURCE_ORDER = [
+  "mihon",
+  "mangayomi",
+  "ios",
+  "misc"
+];
 
-  return "anymex://add-repo?url=" +
-    encodeURIComponent(url);
+const FILTERS = [
+  "All",
+  "Anime",
+  "Manga",
+  "Movies",
+  "TV",
+  "Novels",
+  "iOS",
+  "Misc"
+];
 
-}
+const state = {
+  entries: [],
+  sources: [],
+  filter: "All",
+  search: "",
+  loaded: 0,
+  indexes: new Map(),
+  pings: new Map()
+};
 
+const catalog =
+  document.getElementById("catalog");
+
+const search =
+  document.getElementById("search");
+
+const filters =
+  document.getElementById("filters");
 
 function esc(value){
+  return String(value ?? "")
+    .replace(/[&<>"']/g, char => ({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      '"':"&quot;",
+      "'":"&#39;"
+    }[char]));
+}
 
-  return String(value).replace(
-    /[&<>"']/g,
-    function(char){
-      return {
-        "&":"&amp;",
-        "<":"&lt;",
-        ">":"&gt;",
-        '"':"&quot;",
-        "'":"&#39;"
-      }[char];
+function addToAnymeX(url){
+  return (
+    "anymex://add-repo?url=" +
+    encodeURIComponent(url)
+  );
+}
+
+function looksLikeIndex(url){
+  if(!url) return false;
+
+  return (
+    /\.json(?:[?#].*)?$/i.test(url) ||
+    /index/i.test(url) ||
+    /repo/i.test(url)
+  );
+}
+
+function categoryMatch(entry){
+  if(state.filter === "All"){
+    return true;
+  }
+
+  return entry.category === state.filter;
+}
+
+function searchMatch(entry){
+  if(!state.search){
+    return true;
+  }
+
+  const haystack = [
+    entry.name,
+    entry.section,
+    entry.sourceName,
+    entry.category,
+    entry.url
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(
+    state.search.toLowerCase()
+  );
+}
+
+function filteredEntries(){
+  return state.entries.filter(
+    entry =>
+      categoryMatch(entry) &&
+      searchMatch(entry)
+  );
+}
+
+function makeFilters(){
+  filters.innerHTML =
+    FILTERS.map(
+      name => `
+        <button
+          class="filter ${name === "All" ? "active" : ""}"
+          data-filter="${esc(name)}"
+          type="button"
+        >
+          ${esc(name)}
+        </button>
+      `
+    ).join("");
+
+  filters
+    .querySelectorAll(".filter")
+    .forEach(button => {
+      button.addEventListener(
+        "click",
+        () => {
+          state.filter =
+            button.dataset.filter;
+
+          filters
+            .querySelectorAll(".filter")
+            .forEach(item =>
+              item.classList.toggle(
+                "active",
+                item === button
+              )
+            );
+
+          render();
+        }
+      );
+    });
+}
+
+function sourceGroups(){
+  const map = new Map();
+
+  for(const entry of filteredEntries()){
+    if(!map.has(entry.sourceId)){
+      map.set(
+        entry.sourceId,
+        {
+          id:entry.sourceId,
+          name:entry.sourceName,
+          pageUrl:entry.pageUrl,
+          entries:[]
+        }
+      );
+    }
+
+    map
+      .get(entry.sourceId)
+      .entries
+      .push(entry);
+  }
+
+  return SOURCE_ORDER
+    .map(id => map.get(id))
+    .filter(Boolean);
+}
+
+function render(){
+  const groups =
+    sourceGroups();
+
+  if(!groups.length){
+    catalog.innerHTML = `
+      <section class="source glass">
+        <div class="empty">
+          No visible matches.
+        </div>
+      </section>
+    `;
+
+    return;
+  }
+
+  catalog.innerHTML =
+    groups.map(group => `
+      <section
+        class="source glass"
+        data-source="${esc(group.id)}"
+      >
+        <div class="source-head">
+          <div>
+            <div class="source-name">
+              ${esc(group.name)}
+            </div>
+
+            <div class="source-meta">
+              ${esc(group.pageUrl)}
+            </div>
+          </div>
+
+          <div class="source-count">
+            ${group.entries.length} entries
+          </div>
+        </div>
+
+        <div class="entries">
+          ${group.entries
+            .map(renderEntry)
+            .join("")}
+        </div>
+      </section>
+    `).join("");
+
+  bindEntryActions();
+}
+
+function renderEntry(entry){
+  const safeId =
+    encodeURIComponent(entry.id);
+
+  const ping =
+    state.pings.get(entry.id);
+
+  const compatibility =
+    (
+      entry.sourceId === "mihon" ||
+      entry.sourceId === "ios"
+    )
+      ? "Source"
+      : "Source";
+
+  const anymex =
+    entry.url
+      ? `
+        <a
+          class="action primary"
+          href="${esc(addToAnymeX(entry.url))}"
+        >
+          Send to AnymeX
+        </a>
+      `
+      : "";
+
+  const install =
+    entry.installUrl
+      ? `
+        <a
+          class="action"
+          href="${esc(entry.installUrl)}"
+        >
+          Original install
+        </a>
+      `
+      : "";
+
+  const inspect =
+    looksLikeIndex(entry.url)
+      ? `
+        <button
+          class="action"
+          type="button"
+          data-action="index"
+          data-id="${safeId}"
+        >
+          Inspect feed
+        </button>
+      `
+      : "";
+
+  const pingAction = `
+    <button
+      class="action"
+      type="button"
+      data-action="ping"
+      data-id="${safeId}"
+    >
+      Ping
+    </button>
+  `;
+
+  const source =
+    `
+      <a
+        class="action"
+        href="${esc(entry.url)}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Source
+      </a>
+    `;
+
+  const statusBadge =
+    ping
+      ? `
+        <span class="badge ${
+          ping.ok
+            ? "online"
+            : "offline"
+        }">
+          ${ping.ok
+            ? "Online"
+            : "Offline"}
+          ${ping.status
+            ? ` ${esc(ping.status)}`
+            : ""}
+        </span>
+      `
+      : "";
+
+  return `
+    <article
+      class="entry"
+      data-entry="${safeId}"
+    >
+
+      <div class="entry-top">
+        <div>
+          <div class="entry-name">
+            ${esc(entry.name)}
+          </div>
+
+          <div class="entry-section">
+            ${esc(entry.section)}
+          </div>
+        </div>
+      </div>
+
+      <div class="badges">
+        <span class="badge">
+          ${esc(entry.category)}
+        </span>
+
+        <span class="badge">
+          ${esc(entry.sourceName)}
+        </span>
+
+        ${statusBadge}
+      </div>
+
+      <div class="actions">
+        ${anymex}
+        ${install}
+        ${inspect}
+        ${pingAction}
+        ${source}
+      </div>
+
+      ${
+        looksLikeIndex(entry.url)
+          ? `
+            <div
+              class="index-panel"
+              data-index-panel="${safeId}"
+            >
+              <div class="index-state">
+                Feed closed
+              </div>
+            </div>
+          `
+          : ""
+      }
+
+    </article>
+  `;
+}
+
+function bindEntryActions(){
+  catalog
+    .querySelectorAll(
+      '[data-action="ping"]'
+    )
+    .forEach(button => {
+      button.addEventListener(
+        "click",
+        () => pingEntry(
+          decodeURIComponent(
+            button.dataset.id
+          )
+        )
+      );
+    });
+
+  catalog
+    .querySelectorAll(
+      '[data-action="index"]'
+    )
+    .forEach(button => {
+      button.addEventListener(
+        "click",
+        () => toggleIndex(
+          decodeURIComponent(
+            button.dataset.id
+          )
+        )
+      );
+    });
+}
+
+function findEntry(id){
+  return state.entries.find(
+    entry => entry.id === id
+  );
+}
+
+async function pingEntry(id){
+  const entry =
+    findEntry(id);
+
+  if(!entry) return;
+
+  state.pings.set(
+    id,
+    {
+      ok:false,
+      status:0,
+      statusText:"Checking"
     }
   );
 
-}
-
-
-async function load(){
-
-  const status =
-    document.querySelector("#status");
-
-  const box =
-    document.querySelector("#repos");
-
+  render();
 
   try{
-
-    const response =
-      await fetch(API,{
-        method:"GET",
-        cache:"no-store",
-        headers:{
-          "Accept":"application/json"
+    const result =
+      await fetch(
+        API +
+        "/api/ping?url=" +
+        encodeURIComponent(entry.url),
+        {
+          cache:"no-store"
         }
-      });
-
-
-    if(!response.ok){
-
-      throw new Error(
-        "API returned HTTP " +
-        response.status
       );
-
-    }
-
 
     const data =
-      await response.json();
+      await result.json();
 
+    state.pings.set(id,data);
+  }catch(error){
+    state.pings.set(
+      id,
+      {
+        ok:false,
+        status:0,
+        statusText:
+          String(
+            error?.message ||
+            error
+          )
+      }
+    );
+  }
 
-    if(!data || !Array.isArray(data.repos)){
+  render();
+}
 
+function normalizeIndex(data){
+  if(Array.isArray(data)){
+    return data;
+  }
+
+  if(
+    data &&
+    typeof data === "object"
+  ){
+    for(
+      const key of [
+        "extensions",
+        "sources",
+        "items",
+        "results",
+        "data"
+      ]
+    ){
+      if(
+        Array.isArray(
+          data[key]
+        )
+      ){
+        return data[key];
+      }
+    }
+  }
+
+  return [];
+}
+
+function extensionName(item){
+  if(typeof item === "string"){
+    return item;
+  }
+
+  return (
+    item?.name ||
+    item?.title ||
+    item?.displayName ||
+    item?.id ||
+    "Unnamed extension"
+  );
+}
+
+function extensionMeta(item){
+  if(typeof item === "string"){
+    return "";
+  }
+
+  return [
+    item?.lang,
+    item?.language,
+    item?.version,
+    item?.typeSource,
+    item?.appMinVerReq
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function extensionIcon(item){
+  if(
+    item &&
+    typeof item === "object" &&
+    item.iconUrl
+  ){
+    return item.iconUrl;
+  }
+
+  return "";
+}
+
+function extensionNSFW(item){
+  return (
+    item &&
+    typeof item === "object" &&
+    (
+      item.isNsfw === true ||
+      item.nsfw === true
+    )
+  );
+}
+
+async function toggleIndex(id){
+  const entry =
+    findEntry(id);
+
+  if(!entry) return;
+
+  const panel =
+    document.querySelector(
+      `[data-index-panel="${encodeURIComponent(id)}"]`
+    );
+
+  if(!panel) return;
+
+  if(
+    panel.classList.contains("open")
+  ){
+    panel.classList.remove("open");
+    return;
+  }
+
+  panel.classList.add("open");
+
+  const cached =
+    state.indexes.get(id);
+
+  if(cached){
+    renderIndexPanel(
+      panel,
+      cached
+    );
+
+    return;
+  }
+
+  panel.innerHTML = `
+    <div class="index-state">
+      Reading extension feed
+    </div>
+  `;
+
+  try{
+    const result =
+      await fetch(
+        API +
+        "/api/index?url=" +
+        encodeURIComponent(
+          entry.url
+        ),
+        {
+          cache:"no-store"
+        }
+      );
+
+    if(!result.ok){
       throw new Error(
-        "Invalid API response"
+        `HTTP ${result.status}`
       );
-
     }
 
+    const data =
+      await result.json();
 
-    const repositories =
-      data.repos.filter(
-        repo =>
-          repo &&
-          Array.isArray(repo.indexes) &&
-          repo.indexes.length > 0
-      );
+    const items =
+      normalizeIndex(data);
 
+    state.indexes.set(
+      id,
+      items
+    );
 
-    if(repositories.length === 0){
+    renderIndexPanel(
+      panel,
+      items
+    );
+  }catch(error){
+    panel.innerHTML = `
+      <div class="index-state">
+        Feed could not be read.
+        ${esc(
+          error?.message ||
+          error
+        )}
+      </div>
+    `;
+  }
+}
 
-      status.textContent =
-        "The API responded, but no repositories were found.";
+function renderIndexPanel(
+  panel,
+  items
+){
+  if(!items.length){
+    panel.innerHTML = `
+      <div class="index-state">
+        The endpoint responded, but no
+        extension array was found.
+      </div>
+    `;
 
-      return;
+    return;
+  }
 
-    }
+  panel.innerHTML = `
+    <div class="index-state">
+      ${items.length}
+      extension entries discovered
+    </div>
 
+    <div
+      class="extension-list"
+      style="margin-top:9px"
+    >
+      ${
+        items.map(item => {
+          const icon =
+            extensionIcon(item);
 
-    box.innerHTML =
-      repositories.map(function(repo){
+          const nsfw =
+            extensionNSFW(item);
 
-        const indexes =
-          repo.indexes.map(function(index){
+          return `
+            <div class="extension">
 
-            if(!index || !index.url){
-              return "";
-            }
+              ${
+                icon
+                  ? `
+                    <img
+                      class="extension-icon"
+                      src="${esc(icon)}"
+                      alt=""
+                      loading="lazy"
+                      onerror="this.style.display='none'"
+                    >
+                  `
+                  : `
+                    <div
+                      class="extension-icon"
+                    ></div>
+                  `
+              }
 
+              <div class="extension-main">
 
-            return `
-              <div style="margin-top:12px">
+                <div class="extension-name">
+                  ${esc(
+                    extensionName(item)
+                  )}
+                </div>
 
-                <span class="kind">
-                  ${esc(index.type || "Repository")}
-                </span>
-
-                <a
-                  class="btn"
-                  href="${addLink(index.url)}"
-                >
-                  Add to AnymeX
-                </a>
-
-                <div class="sub">
-                  ${esc(index.url)}
+                <div class="extension-meta">
+                  ${esc(
+                    extensionMeta(item)
+                  )}
                 </div>
 
               </div>
-            `;
 
-          }).join("");
-
-
-        const firstIndex =
-          repo.indexes.find(
-            index => index && index.url
-          );
-
-
-        const mainButton =
-          firstIndex
-            ? `
-              <a
-                class="btn"
-                href="${addLink(firstIndex.url)}"
-              >
-                Add to AnymeX
-              </a>
-            `
-            : "";
-
-
-        return `
-          <section class="repo">
-
-            <div class="row">
-
-              <div class="name">
-                ${esc(repo.name || repo.repo || "Repository")}
-              </div>
-
-              ${mainButton}
+              ${
+                nsfw
+                  ? `
+                    <span class="badge nsfw">
+                      NSFW
+                    </span>
+                  `
+                  : ""
+              }
 
             </div>
-
-            ${indexes}
-
-          </section>
-        `;
-
-      }).join("");
-
-
-    status.textContent =
-      `Loaded ${repositories.length} repositories from Wotaku.`;
-
-
-  }catch(error){
-
-    console.error(
-      "Wotaku API error:",
-      error
-    );
-
-
-    status.classList.add("error");
-
-    status.innerHTML =
-      `
-      Could not load the Wotaku feed.
-
-      <br><br>
-
-      <small>
-        ${esc(error.message)}
-      </small>
-      `;
-
-  }
-
+          `;
+        }).join("")
+      }
+    </div>
+  `;
 }
 
+async function loadSources(){
+  catalog.innerHTML = `
+    <section class="source glass">
+      <div class="index-state">
+        Reading Wotaku source lanes
+      </div>
+    </section>
+  `;
 
-load();
+  const results =
+    await Promise.all(
+      SOURCE_ORDER.map(
+        async id => {
+          try{
+            const result =
+              await fetch(
+                API +
+                "/api/source?source=" +
+                encodeURIComponent(id),
+                {
+                  cache:"no-store",
+                  headers:{
+                    "Accept":
+                      "application/json"
+                  }
+                }
+              );
 
+            if(!result.ok){
+              throw new Error(
+                `HTTP ${result.status}`
+              );
+            }
+
+            return await result.json();
+          }catch(error){
+            return {
+              source:{
+                id,
+                name:id
+              },
+              entries:[],
+              error:
+                String(
+                  error?.message ||
+                  error
+                )
+            };
+          }
+        }
+      )
+    );
+
+  state.sources =
+    results.map(
+      result => result.source
+    );
+
+  state.entries =
+    results.flatMap(
+      result => result.entries || []
+    );
+
+  state.loaded =
+    results.filter(
+      result =>
+        !result.error
+    ).length;
+
+  render();
+}
+
+search.addEventListener(
+  "input",
+  event => {
+    state.search =
+      event.target.value.trim();
+
+    render();
+  }
+);
+
+makeFilters();
+
+loadSources();
+
+const root =
+  document.documentElement;
+
+let targetX = 0;
+let targetY = 0;
+let currentX = 0;
+let currentY = 0;
+
+function setPointer(x,y){
+  const width =
+    window.innerWidth || 1;
+
+  const height =
+    window.innerHeight || 1;
+
+  targetX =
+    ((x / width) - .5) * 2;
+
+  targetY =
+    ((y / height) - .5) * 2;
+}
+
+window.addEventListener(
+  "pointermove",
+  event => {
+    setPointer(
+      event.clientX,
+      event.clientY
+    );
+  },
+  {
+    passive:true
+  }
+);
+
+window.addEventListener(
+  "touchmove",
+  event => {
+    const touch =
+      event.touches[0];
+
+    if(touch){
+      setPointer(
+        touch.clientX,
+        touch.clientY
+      );
+    }
+  },
+  {
+    passive:true
+  }
+);
+
+function animate(){
+  currentX +=
+    (targetX - currentX) * .055;
+
+  currentY +=
+    (targetY - currentY) * .055;
+
+  const rotationY =
+    currentX * 2.8;
+
+  const rotationX =
+    currentY * -2.8;
+
+  root.style.setProperty(
+    "--rx",
+    `${rotationX}deg`
+  );
+
+  root.style.setProperty(
+    "--ry",
+    `${rotationY}deg`
+  );
+
+  root.style.setProperty(
+    "--mx",
+    `${currentX * 13}`
+  );
+
+  root.style.setProperty(
+    "--my",
+    `${currentY * 13}`
+  );
+
+  requestAnimationFrame(
+    animate
+  );
+}
+
+animate();
 </script>
 
 </body>
