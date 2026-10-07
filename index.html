@@ -1702,1086 +1702,3207 @@ body{
 
 
 <script>
-const API_URL =
-  "https://workerz.youngengolden.workers.dev/api/repos";
+(() => {
+  "use strict";
 
-const ANYMEX_SCHEME =
-  "anymex://add-repo?url=";
+  /*
+   * ============================================================
+   * ANYMEX WOTAKU EXTENSION HUB
+   * Full frontend controller
+   *
+   * Supports:
+   *   1. { repos: [...] }
+   *   2. { repositories: [...] }
+   *   3. { data: [...] }
+   *   4. { sources: [{ links: [...] }] }
+   *
+   * Does not filter NSFW content.
+   *
+   * Worker:
+   *   https://workerz.youngengolden.workers.dev
+   *
+   * Feed:
+   *   /api/repos
+   *
+   * Ping:
+   *   /api/ping?url=<encoded-url>
+   * ============================================================
+   */
 
-const state = {
-  feed:null,
-  repos:[],
-  type:"all",
-  source:"all",
-  search:""
-};
+  const CONFIG = {
+    workerBase:
+      "https://workerz.youngengolden.workers.dev",
 
-const content =
-  document.getElementById("content");
+    feedEndpoint:
+      "https://workerz.youngengolden.workers.dev/api/repos",
 
-const typeTabs =
-  document.getElementById("typeTabs");
+    pingEndpoint:
+      "https://workerz.youngengolden.workers.dev/api/ping",
 
-const sourceFilter =
-  document.getElementById("sourceFilter");
+    anymexScheme:
+      "anymex://add-repo?url=",
 
-const searchInput =
-  document.getElementById("searchInput");
+    requestTimeout:
+      15000,
 
-const statusText =
-  document.getElementById("statusText");
-
-const reloadButton =
-  document.getElementById("reloadButton");
-
-const repoMetric =
-  document.getElementById("repoMetric");
-
-const extensionMetric =
-  document.getElementById("extensionMetric");
-
-const feedMetric =
-  document.getElementById("feedMetric");
-
-
-function escapeHtml(value){
-
-  return String(value ?? "")
-    .replace(/[&<>"']/g, character => ({
-      "&":"&amp;",
-      "<":"&lt;",
-      ">":"&gt;",
-      "\"":"&quot;",
-      "'":"&#39;"
-    }[character]));
-
-}
+    pingTimeout:
+      10000
+  };
 
 
-function escapeAttribute(value){
+  /*
+   * ============================================================
+   * DOM HELPERS
+   * ============================================================
+   */
 
-  return escapeHtml(value)
-    .replace(/`/g,"&#96;");
+  const $ = (selector, root = document) =>
+    root.querySelector(selector);
 
-}
+  const $$ = (selector, root = document) =>
+    Array.from(root.querySelectorAll(selector));
 
 
-function safeHttpUrl(value){
+  function firstExisting(selectors) {
+    for (const selector of selectors) {
+      const element = $(selector);
 
-  try{
+      if (element) {
+        return element;
+      }
+    }
 
-    const url =
-      new URL(String(value));
+    return null;
+  }
 
-    if(
-      url.protocol !== "https:" &&
-      url.protocol !== "http:"
-    ){
+
+  /*
+   * ============================================================
+   * STATE
+   * ============================================================
+   */
+
+  const state = {
+    raw: null,
+
+    repos: [],
+
+    sourceGroups: [],
+
+    activeSource:
+      "all",
+
+    search:
+      "",
+
+    loading:
+      true,
+
+    error:
+      null,
+
+    generatedAt:
+      null,
+
+    lastUpdated:
+      null,
+
+    pinging:
+      new Set(),
+
+    pingResults:
+      new Map()
+  };
+
+
+  /*
+   * ============================================================
+   * SAFE UTILITIES
+   * ============================================================
+   */
+
+  function text(value, fallback = "") {
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return fallback;
+    }
+
+    return String(value).trim();
+  }
+
+
+  function escapeHTML(value) {
+    return text(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+
+  function safeURL(value) {
+    const raw = text(value);
+
+    if (!raw) {
       return null;
     }
 
-    return url.href;
-
-  }catch{
-
-    return null;
-
-  }
-
-}
-
-
-function anymexUrl(value){
-
-  const safe =
-    safeHttpUrl(value);
-
-  if(!safe){
-    return null;
-  }
-
-  return (
-    ANYMEX_SCHEME +
-    encodeURIComponent(safe)
-  );
-
-}
-
-
-function normaliseArray(value){
-
-  if(Array.isArray(value)){
-    return value;
-  }
-
-  if(
-    value &&
-    typeof value === "object"
-  ){
-    return Object.values(value);
-  }
-
-  return [];
-
-}
-
-
-function cleanType(value){
-
-  const text =
-    String(value ?? "")
-      .trim()
-      .toLowerCase();
-
-  if(!text){
-    return "other";
-  }
-
-  if(
-    text.includes("anime")
-  ){
-    return "anime";
-  }
-
-  if(
-    text.includes("manga") ||
-    text.includes("manhwa") ||
-    text.includes("manhua") ||
-    text.includes("comic")
-  ){
-    return "manga";
-  }
-
-  if(
-    text.includes("novel") ||
-    text.includes("light novel")
-  ){
-    return "novel";
-  }
-
-  if(
-    text.includes("movie") ||
-    text.includes("film")
-  ){
-    return "movies";
-  }
-
-  if(
-    /\btv\b/.test(text) ||
-    text.includes("television") ||
-    text.includes("series") ||
-    text.includes("show")
-  ){
-    return "tv";
-  }
-
-  return "other";
-
-}
-
-
-function detectType(index, repo){
-
-  const explicit =
-    index?.type ??
-    index?.category ??
-    index?.kind ??
-    "";
-
-  const explicitType =
-    cleanType(explicit);
-
-  if(explicitType !== "other"){
-    return explicitType;
-  }
-
-  const combined = [
-    index?.name,
-    index?.label,
-    index?.title,
-    index?.url,
-    repo?.name,
-    repo?.category,
-    repo?.source
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return cleanType(combined);
-
-}
-
-
-function detectNsfw(index, repo){
-
-  const combined = [
-    index?.name,
-    index?.label,
-    index?.title,
-    index?.type,
-    index?.url,
-    repo?.name,
-    repo?.category,
-    repo?.source
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return (
-    /\bnsfw\b/.test(combined) ||
-    /\b18\+/.test(combined) ||
-    /\badult\b/.test(combined) ||
-    /\bhentai\b/.test(combined)
-  );
-
-}
-
-
-function sourceName(repo){
-
-  return String(
-    repo?.source ??
-    repo?.platform ??
-    repo?.category ??
-    repo?.section ??
-    repo?.site ??
-    "Unknown"
-  ).trim() || "Unknown";
-
-}
-
-
-function normaliseRepo(repo, index){
-
-  const indexes =
-    normaliseArray(repo?.indexes);
-
-  const fallbackUrl =
-    safeHttpUrl(
-      repo?.repo ??
-      repo?.github ??
-      repo?.url
-    );
-
-  const normalisedIndexes =
-    indexes
-      .map((indexItem, indexPosition) => {
-
-        const url =
-          safeHttpUrl(
-            indexItem?.url ??
-            indexItem?.repo ??
-            indexItem?.github
-          );
-
-        if(!url){
-          return null;
-        }
-
-        const name =
-          String(
-            indexItem?.name ??
-            indexItem?.label ??
-            indexItem?.title ??
-            indexItem?.type ??
-            `Extension ${indexPosition + 1}`
-          ).trim();
-
-        return {
-          id:
-            `${index}-${indexPosition}-${url}`,
-
-          name,
-
-          url,
-
-          type:
-            detectType(
-              indexItem,
-              repo
-            ),
-
-          nsfw:
-            detectNsfw(
-              indexItem,
-              repo
-            )
-        };
-
-      })
-      .filter(Boolean);
-
-  if(
-    !normalisedIndexes.length &&
-    fallbackUrl
-  ){
-
-    normalisedIndexes.push({
-      id:
-        `${index}-fallback-${fallbackUrl}`,
-
-      name:
-        String(
-          repo?.name ??
-          "Repository"
-        ),
-
-      url:
-        fallbackUrl,
-
-      type:
-        detectType(
-          {},
-          repo
-        ),
-
-      nsfw:
-        detectNsfw(
-          {},
-          repo
-        )
-    });
-
-  }
-
-  return {
-    id:
-      String(
-        repo?.id ??
-        repo?.name ??
-        repo?.repo ??
-        repo?.github ??
-        index
-      ),
-
-    name:
-      String(
-        repo?.name ??
-        repo?.title ??
-        repo?.repo ??
-        repo?.github ??
-        `Repository ${index + 1}`
-      ),
-
-    repoUrl:
-      fallbackUrl,
-
-    github:
-      safeHttpUrl(repo?.github),
-
-    source:
-      sourceName(repo),
-
-    indexes:
-      normalisedIndexes
-  };
-
-}
-
-
-function normaliseFeed(data){
-
-  const rawRepos =
-    normaliseArray(
-      data?.repos ??
-      data?.repositories ??
-      data?.data
-    );
-
-  return rawRepos
-    .map(normaliseRepo)
-    .filter(repo => repo.indexes.length);
-
-}
-
-
-function allTypes(){
-
-  return [
-    {
-      id:"all",
-      label:"All"
-    },
-    {
-      id:"anime",
-      label:"Anime"
-    },
-    {
-      id:"manga",
-      label:"Manga"
-    },
-    {
-      id:"novel",
-      label:"Novel"
-    },
-    {
-      id:"movies",
-      label:"Movies"
-    },
-    {
-      id:"tv",
-      label:"TV"
-    },
-    {
-      id:"other",
-      label:"Other"
+    try {
+      const url = new URL(raw);
+
+      if (
+        url.protocol !== "http:" &&
+        url.protocol !== "https:"
+      ) {
+        return null;
+      }
+
+      return url.href;
+    } catch {
+      return null;
     }
-  ];
-
-}
+  }
 
 
-function renderTypeTabs(){
+  function normaliseArray(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
 
-  typeTabs.innerHTML =
-    allTypes()
-      .map(item => `
-        <button
-          class="tab ${state.type === item.id ? "active" : ""}"
-          type="button"
-          data-type="${escapeAttribute(item.id)}"
-        >
-          ${escapeHtml(item.label)}
-        </button>
-      `)
-      .join("");
+    if (
+      value &&
+      typeof value === "object"
+    ) {
+      return Object.values(value);
+    }
 
-}
+    return [];
+  }
 
 
-function renderSourceFilter(){
+  function uniqueBy(items, keyFunction) {
+    const seen = new Set();
+    const result = [];
 
-  const sources =
-    Array.from(
-      new Set(
-        state.repos
-          .map(repo => repo.source)
-          .filter(Boolean)
+    for (const item of items) {
+      const key = keyFunction(item);
+
+      if (!key || seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      result.push(item);
+    }
+
+    return result;
+  }
+
+
+  function lower(value) {
+    return text(value).toLowerCase();
+  }
+
+
+  function includesAny(value, words) {
+    const haystack = lower(value);
+
+    return words.some(
+      word => haystack.includes(lower(word))
+    );
+  }
+
+
+  /*
+   * ============================================================
+   * TYPE DETECTION
+   * ============================================================
+   */
+
+  function detectType(link = {}, context = {}) {
+
+    const combined = [
+      link?.type,
+      link?.kind,
+      link?.category,
+      link?.label,
+      link?.name,
+      link?.title,
+      context?.name,
+      context?.source,
+      context?.category
+    ]
+      .map(lower)
+      .join(" ");
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "hentai video",
+          "adult video",
+          "porn video"
+        ]
       )
-    )
-    .sort(
-      (a,b) =>
-        a.localeCompare(b)
-    );
-
-  const items = [
-    {
-      id:"all",
-      label:"All Sources"
-    },
-    ...sources.map(source => ({
-      id:source,
-      label:source
-    }))
-  ];
-
-  sourceFilter.innerHTML =
-    items
-      .map(item => `
-        <button
-          class="source-chip ${
-            state.source === item.id
-              ? "active"
-              : ""
-          }"
-          type="button"
-          data-source="${escapeAttribute(item.id)}"
-        >
-          ${escapeHtml(item.label)}
-        </button>
-      `)
-      .join("");
-
-}
-
-
-function repoMatches(repo){
-
-  if(
-    state.source !== "all" &&
-    repo.source !== state.source
-  ){
-    return false;
-  }
-
-  const visibleIndexes =
-    repo.indexes.filter(index => {
-
-      if(
-        state.type !== "all" &&
-        index.type !== state.type
-      ){
-        return false;
-      }
-
-      if(!state.search){
-        return true;
-      }
-
-      const searchable = [
-        repo.name,
-        repo.source,
-        index.name,
-        index.type,
-        index.url
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return searchable.includes(
-        state.search
-      );
-
-    });
-
-  return visibleIndexes.length > 0;
-
-}
-
-
-function visibleIndexes(repo){
-
-  return repo.indexes.filter(index => {
-
-    if(
-      state.type !== "all" &&
-      index.type !== state.type
-    ){
-      return false;
+    ) {
+      return "Hentai Video";
     }
 
-    if(!state.search){
+
+    if (
+      includesAny(
+        combined,
+        [
+          "hentai manga",
+          "adult manga",
+          "porn manga"
+        ]
+      )
+    ) {
+      return "Hentai Manga";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "hentai novel",
+          "adult novel",
+          "porn novel"
+        ]
+      )
+    ) {
+      return "Hentai Novel";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "hentai"
+        ]
+      )
+    ) {
+      return "Hentai";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "anime"
+        ]
+      )
+    ) {
+      return "Anime";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "manga"
+        ]
+      )
+    ) {
+      return "Manga";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "manhwa"
+        ]
+      )
+    ) {
+      return "Manhwa";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "manhua"
+        ]
+      )
+    ) {
+      return "Manhua";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "comic",
+          "comics"
+        ]
+      )
+    ) {
+      return "Comics";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "novel",
+          "light novel",
+          "web novel"
+        ]
+      )
+    ) {
+      return "Novel";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "movie",
+          "film"
+        ]
+      )
+    ) {
+      return "Movies";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "tv",
+          "show",
+          "series"
+        ]
+      )
+    ) {
+      return "TV";
+    }
+
+
+    if (
+      includesAny(
+        combined,
+        [
+          "video"
+        ]
+      )
+    ) {
+      return "Video";
+    }
+
+
+    return (
+      text(
+        link?.type ??
+        link?.kind
+      ) ||
+      "Extension"
+    );
+  }
+
+
+  /*
+   * ============================================================
+   * NSFW DETECTION
+   *
+   * IMPORTANT:
+   * This detects and labels NSFW.
+   * It does NOT remove it.
+   * ============================================================
+   */
+
+  function detectNsfw(link = {}, context = {}) {
+
+    if (
+      link?.nsfw === true ||
+      link?.isNsfw === true ||
+      link?.adult === true ||
+      link?.isAdult === true
+    ) {
       return true;
     }
 
-    const searchable = [
-      repo.name,
-      repo.source,
-      index.name,
-      index.type,
-      index.url
+
+    const combined = [
+      link?.type,
+      link?.kind,
+      link?.category,
+      link?.label,
+      link?.name,
+      link?.title,
+      link?.rating,
+      context?.name,
+      context?.source,
+      context?.category
     ]
-      .join(" ")
-      .toLowerCase();
+      .map(lower)
+      .join(" ");
 
-    return searchable.includes(
-      state.search
+
+    return includesAny(
+      combined,
+      [
+        "nsfw",
+        "hentai",
+        "adult",
+        "18+",
+        "18 plus",
+        "porn",
+        "ecchi"
+      ]
     );
-
-  });
-
-}
-
-
-function typeLabel(type){
-
-  const labels = {
-    anime:"Anime",
-    manga:"Manga",
-    novel:"Novel",
-    movies:"Movies",
-    tv:"TV",
-    other:"Other"
-  };
-
-  return labels[type] || "Other";
-
-}
-
-
-function renderExtension(index){
-
-  const addUrl =
-    anymexUrl(index.url);
-
-  const safeUrl =
-    safeHttpUrl(index.url);
-
-  return `
-    <article class="extension">
-
-      <div class="extension-info">
-
-        <div class="extension-top">
-
-          <span class="extension-name">
-            ${escapeHtml(index.name)}
-          </span>
-
-          <span class="extension-type">
-            ${escapeHtml(typeLabel(index.type))}
-          </span>
-
-          ${
-            index.nsfw
-              ? `
-                <span class="badge nsfw">
-                  NSFW
-                </span>
-              `
-              : ""
-          }
-
-        </div>
-
-        <div class="extension-url">
-          ${escapeHtml(index.url)}
-        </div>
-
-      </div>
-
-      <div class="extension-actions">
-
-        ${
-          safeUrl
-            ? `
-              <a
-                class="mini-action"
-                href="${escapeAttribute(safeUrl)}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open
-              </a>
-            `
-            : ""
-        }
-
-        ${
-          addUrl
-            ? `
-              <a
-                class="mini-action add"
-                href="${escapeAttribute(addUrl)}"
-              >
-                Add
-              </a>
-            `
-            : ""
-        }
-
-      </div>
-
-    </article>
-  `;
-
-}
-
-
-function renderRepo(repo){
-
-  const indexes =
-    visibleIndexes(repo);
-
-  if(!indexes.length){
-    return "";
   }
 
-  const hasNsfw =
-    indexes.some(
-      index => index.nsfw
-    );
 
-  const repoOpen =
-    safeHttpUrl(repo.repoUrl);
+  /*
+   * ============================================================
+   * REPOSITORY URL DETECTION
+   * ============================================================
+   */
 
-  const githubOpen =
-    safeHttpUrl(repo.github);
+  function findRepositoryURL(value) {
 
-  const addRepo =
-    anymexUrl(
-      repo.repoUrl ??
-      repo.github
-    );
+    const candidates = [
+      value?.repo,
+      value?.repository,
+      value?.repositoryUrl,
+      value?.repoUrl,
+      value?.github,
+      value?.githubUrl,
+      value?.url
+    ];
 
-  return `
-    <article class="repo-card glass">
 
-      <div class="repo-head">
+    for (const candidate of candidates) {
 
-        <div>
+      const url =
+        safeURL(candidate);
 
-          <div class="repo-title">
-            ${escapeHtml(repo.name)}
-          </div>
-
-          <div class="repo-source">
-            ${escapeHtml(repo.source)}
-            ·
-            ${indexes.length}
-            ${indexes.length === 1 ? "index" : "indexes"}
-          </div>
-
-        </div>
-
-        <div class="repo-badges">
-
-          <span class="badge">
-            ${escapeHtml(repo.source)}
-          </span>
-
-          ${
-            hasNsfw
-              ? `
-                <span class="badge nsfw">
-                  NSFW
-                </span>
-              `
-              : ""
-          }
-
-        </div>
-
-      </div>
-
-      ${
-        repo.repoUrl
-          ? `
-            <div class="repo-url">
-              ${escapeHtml(repo.repoUrl)}
-            </div>
-          `
-          : ""
+      if (url) {
+        return url;
       }
-
-      <div class="extension-list">
-
-        ${indexes
-          .map(renderExtension)
-          .join("")}
-
-      </div>
-
-      <div class="hero-actions">
-
-        ${
-          repoOpen
-            ? `
-              <a
-                class="action"
-                href="${escapeAttribute(repoOpen)}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open Repository
-              </a>
-            `
-            : ""
-        }
-
-        ${
-          githubOpen &&
-          githubOpen !== repoOpen
-            ? `
-              <a
-                class="action"
-                href="${escapeAttribute(githubOpen)}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                GitHub
-              </a>
-            `
-            : ""
-        }
-
-        ${
-          addRepo
-            ? `
-              <a
-                class="action primary"
-                href="${escapeAttribute(addRepo)}"
-              >
-                Add Repository
-              </a>
-            `
-            : ""
-        }
-
-      </div>
-
-    </article>
-  `;
-
-}
-
-
-function render(){
-
-  renderTypeTabs();
-  renderSourceFilter();
-
-  if(!state.repos.length){
-
-    content.innerHTML = `
-      <div class="empty error">
-        The live repository feed returned no repositories.
-      </div>
-    `;
-
-    return;
-  }
-
-  const visibleRepos =
-    state.repos
-      .filter(repoMatches);
-
-  if(!visibleRepos.length){
-
-    content.innerHTML = `
-      <div class="empty">
-        No matching extension was found in
-        the current view.
-      </div>
-    `;
-
-    return;
-  }
-
-  const grouped =
-    new Map();
-
-  visibleRepos.forEach(repo => {
-
-    if(!grouped.has(repo.source)){
-      grouped.set(
-        repo.source,
-        []
-      );
     }
 
-    grouped
-      .get(repo.source)
-      .push(repo);
 
-  });
+    return null;
+  }
 
-  let html = "";
 
-  grouped.forEach(
-    (repos, source) => {
+  /*
+   * ============================================================
+   * LINK NORMALISATION
+   * ============================================================
+   */
 
-      const extensionCount =
-        repos.reduce(
-          (total, repo) =>
-            total +
-            visibleIndexes(repo).length,
-          0
+  function normaliseLink(
+    link,
+    context = {},
+    index = 0
+  ) {
+
+    if (
+      !link ||
+      typeof link !== "object"
+    ) {
+      return null;
+    }
+
+
+    const url =
+      safeURL(
+        link?.addTarget
+      ) ||
+      safeURL(
+        link?.url
+      ) ||
+      safeURL(
+        link?.href
+      ) ||
+      safeURL(
+        link?.target
+      );
+
+
+    if (!url) {
+      return null;
+    }
+
+
+    const label =
+      text(
+        link?.label ??
+        link?.name ??
+        link?.title ??
+        link?.type ??
+        link?.kind,
+        "Extension"
+      );
+
+
+    const kind =
+      lower(
+        link?.kind ??
+        link?.type ??
+        "extension"
+      );
+
+
+    const repoURL =
+      findRepositoryURL(link);
+
+
+    const type =
+      detectType(
+        link,
+        context
+      );
+
+
+    const nsfw =
+      detectNsfw(
+        link,
+        context
+      );
+
+
+    return {
+
+      id:
+        text(
+          link?.id,
+          `${context.id || "source"}|${index}|${url}`
+        ),
+
+      name:
+        label,
+
+      url,
+
+      repoUrl:
+        repoURL,
+
+      github:
+        safeURL(
+          link?.github
+        ),
+
+      kind,
+
+      type,
+
+      nsfw,
+
+      source:
+        text(
+          context.name ??
+          context.label ??
+          context.source,
+          "Wotaku"
+        ),
+
+      sourceId:
+        text(
+          context.id
+        ),
+
+      category:
+        text(
+          context.category ??
+          context.section ??
+          context.name
+        ),
+
+      raw:
+        link
+    };
+  }
+
+
+  /*
+   * ============================================================
+   * DIRECT REPOSITORY FORMAT
+   *
+   * Example:
+   *
+   * {
+   *   repos: [
+   *     {
+   *       name: "...",
+   *       repoUrl: "...",
+   *       indexes: [...]
+   *     }
+   *   ]
+   * }
+   * ============================================================
+   */
+
+  function normaliseDirectRepositories(data) {
+
+    const direct =
+      normaliseArray(
+        data?.repos ??
+        data?.repositories ??
+        data?.data
+      );
+
+
+    if (!direct.length) {
+      return [];
+    }
+
+
+    const result = [];
+
+
+    direct.forEach(
+      (repo, repoIndex) => {
+
+        if (
+          !repo ||
+          typeof repo !== "object"
+        ) {
+          return;
+        }
+
+
+        const repoName =
+          text(
+            repo?.name ??
+            repo?.title ??
+            repo?.label ??
+            `Repository ${repoIndex + 1}`
+          );
+
+
+        const repoUrl =
+          safeURL(
+            repo?.repoUrl
+          ) ||
+          safeURL(
+            repo?.repository
+          ) ||
+          safeURL(
+            repo?.repo
+          ) ||
+          safeURL(
+            repo?.github
+          ) ||
+          (
+            lower(
+              repo?.kind
+            ) === "repository"
+              ? safeURL(repo?.url)
+              : null
+          );
+
+
+        const source =
+          text(
+            repo?.source ??
+            repo?.sourceName ??
+            repo?.category ??
+            "Wotaku"
+          );
+
+
+        const context = {
+          id:
+            text(
+              repo?.id,
+              `${source}|${repoIndex}`
+            ),
+
+          name:
+            repoName,
+
+          source,
+
+          category:
+            text(
+              repo?.category ??
+              repo?.section ??
+              source
+            )
+        };
+
+
+        let indexes =
+          normaliseArray(
+            repo?.indexes ??
+            repo?.extensions ??
+            repo?.links ??
+            repo?.sources
+          );
+
+
+        const normalisedLinks =
+          indexes
+            .map(
+              (item, index) =>
+                normaliseLink(
+                  item,
+                  context,
+                  index
+                )
+            )
+            .filter(Boolean);
+
+
+        if (
+          !normalisedLinks.length &&
+          repoUrl
+        ) {
+
+          normalisedLinks.push({
+
+            id:
+              `${context.id}|repository`,
+
+            name:
+              repoName,
+
+            url:
+              repoUrl,
+
+            repoUrl,
+
+            github:
+              safeURL(
+                repo?.github
+              ) ||
+              (
+                repoUrl.includes(
+                  "github.com"
+                )
+                  ? repoUrl
+                  : null
+              ),
+
+            kind:
+              "repository",
+
+            type:
+              detectType(
+                repo,
+                context
+              ),
+
+            nsfw:
+              detectNsfw(
+                repo,
+                context
+              ),
+
+            source,
+
+            sourceId:
+              context.id,
+
+            category:
+              context.category,
+
+            raw:
+              repo
+          });
+        }
+
+
+        const cleanLinks =
+          uniqueBy(
+            normalisedLinks,
+            item =>
+              `${item.url}|${item.name}`
+          );
+
+
+        if (
+          !cleanLinks.length
+        ) {
+          return;
+        }
+
+
+        result.push({
+
+          id:
+            context.id,
+
+          name:
+            repoName,
+
+          repoUrl,
+
+          github:
+            safeURL(
+              repo?.github
+            ) ||
+            (
+              repoUrl &&
+              repoUrl.includes(
+                "github.com"
+              )
+                ? repoUrl
+                : null
+            ),
+
+          source,
+
+          category:
+            context.category,
+
+          indexes:
+            cleanLinks,
+
+          nsfw:
+            cleanLinks.some(
+              item => item.nsfw
+            ),
+
+          raw:
+            repo
+        });
+
+      }
+    );
+
+
+    return result;
+  }
+
+
+  /*
+   * ============================================================
+   * SOURCE FORMAT
+   *
+   * Example:
+   *
+   * {
+   *   sources: [
+   *     {
+   *       id,
+   *       name,
+   *       links: [...]
+   *     }
+   *   ]
+   * }
+   * ============================================================
+   */
+
+  function normaliseSourceFormat(data) {
+
+    const sources =
+      normaliseArray(
+        data?.sources
+      );
+
+
+    if (!sources.length) {
+      return [];
+    }
+
+
+    const result = [];
+
+
+    sources.forEach(
+      (source, sourceIndex) => {
+
+        if (
+          !source ||
+          typeof source !== "object"
+        ) {
+          return;
+        }
+
+
+        const sourceId =
+          text(
+            source?.id ??
+            source?.name ??
+            source?.label ??
+            `source-${sourceIndex}`
+          );
+
+
+        const sourceName =
+          text(
+            source?.name ??
+            source?.label ??
+            source?.title ??
+            sourceId
+          );
+
+
+        const sourceURL =
+          safeURL(
+            source?.url
+          );
+
+
+        const links =
+          normaliseArray(
+            source?.links ??
+            source?.repos ??
+            source?.repositories ??
+            source?.extensions
+          );
+
+
+        const groups =
+          new Map();
+
+
+        let lastRepository =
+          null;
+
+
+        links.forEach(
+          (link, linkIndex) => {
+
+            const context = {
+
+              id:
+                sourceId,
+
+              name:
+                sourceName,
+
+              source:
+                sourceName,
+
+              category:
+                text(
+                  source?.category ??
+                  source?.section ??
+                  sourceName
+                )
+            };
+
+
+            const normalised =
+              normaliseLink(
+                link,
+                context,
+                linkIndex
+              );
+
+
+            if (!normalised) {
+              return;
+            }
+
+
+            const explicitRepo =
+              safeURL(
+                link?.repo
+              ) ||
+              safeURL(
+                link?.repository
+              ) ||
+              safeURL(
+                link?.repoUrl
+              ) ||
+              safeURL(
+                link?.repositoryUrl
+              );
+
+
+            const repositoryURL =
+              explicitRepo ||
+              (
+                normalised.kind ===
+                  "repository"
+                  ? normalised.url
+                  : null
+              );
+
+
+            if (
+              repositoryURL
+            ) {
+
+              const groupKey =
+                [
+                  sourceId,
+                  repositoryURL
+                ].join("|");
+
+
+              if (
+                !groups.has(
+                  groupKey
+                )
+              ) {
+
+                groups.set(
+                  groupKey,
+                  {
+
+                    id:
+                      groupKey,
+
+                    name:
+                      text(
+                        link?.label ??
+                        link?.name ??
+                        link?.title ??
+                        repositoryURL
+                      ),
+
+                    repoUrl:
+                      repositoryURL,
+
+                    github:
+                      safeURL(
+                        link?.github
+                      ) ||
+                      (
+                        repositoryURL
+                          .toLowerCase()
+                          .includes(
+                            "github.com"
+                          )
+                          ? repositoryURL
+                          : null
+                      ),
+
+                    source:
+                      sourceName,
+
+                    category:
+                      context.category,
+
+                    indexes:
+                      [],
+
+                    seen:
+                      new Set()
+
+                  }
+                );
+
+              }
+
+
+              lastRepository =
+                groups.get(
+                  groupKey
+                );
+
+            }
+
+
+            else if (
+              lastRepository
+            ) {
+
+              /*
+               * Index/app links inherit the
+               * repository immediately above them.
+               */
+
+              const isIndexLike =
+                [
+                  "index",
+                  "extension",
+                  "extensions",
+                  "app",
+                  "app-link",
+                  "source",
+                  "catalogue",
+                  "catalog",
+                  "repository"
+                ].some(
+                  value =>
+                    normalised.kind
+                      .includes(value)
+                );
+
+
+              if (
+                isIndexLike ||
+                !normalised.repoUrl
+              ) {
+
+                if (
+                  !lastRepository.seen.has(
+                    normalised.url
+                  )
+                ) {
+
+                  lastRepository.seen.add(
+                    normalised.url
+                  );
+
+                  lastRepository.indexes.push(
+                    normalised
+                  );
+
+                }
+
+                return;
+              }
+            }
+
+
+            /*
+             * Standalone link.
+             */
+
+            const standaloneKey =
+              [
+                sourceId,
+                "standalone",
+                normalised.url
+              ].join("|");
+
+
+            if (
+              !groups.has(
+                standaloneKey
+              )
+            ) {
+
+              groups.set(
+                standaloneKey,
+                {
+
+                  id:
+                    standaloneKey,
+
+                  name:
+                    normalised.name,
+
+                  repoUrl:
+                    null,
+
+                  github:
+                    normalised.github,
+
+                  source:
+                    sourceName,
+
+                  category:
+                    context.category,
+
+                  indexes:
+                    [],
+
+                  seen:
+                    new Set()
+
+                }
+              );
+
+            }
+
+
+            const standalone =
+              groups.get(
+                standaloneKey
+              );
+
+
+            if (
+              !standalone.seen.has(
+                normalised.url
+              )
+            ) {
+
+              standalone.seen.add(
+                normalised.url
+              );
+
+              standalone.indexes.push(
+                normalised
+              );
+
+            }
+
+          }
         );
 
-      html += `
-        <section
-          class="source-section"
-        >
 
-          <div class="section-heading">
+        /*
+         * If Wotaku gave us the source URL but no
+         * separate links, preserve it.
+         */
 
-            <div class="section-name">
-              ${escapeHtml(source)}
+        if (
+          !groups.size &&
+          sourceURL
+        ) {
+
+          const key =
+            `${sourceId}|source`;
+
+
+          groups.set(
+            key,
+            {
+
+              id:
+                key,
+
+              name:
+                sourceName,
+
+              repoUrl:
+                sourceURL,
+
+              github:
+                sourceURL.includes(
+                  "github.com"
+                )
+                  ? sourceURL
+                  : null,
+
+              source:
+                sourceName,
+
+              category:
+                source?.category ??
+                source?.section ??
+                sourceName,
+
+              indexes: [
+                {
+
+                  id:
+                    `${key}|source`,
+
+                  name:
+                    sourceName,
+
+                  url:
+                    sourceURL,
+
+                  repoUrl:
+                    sourceURL,
+
+                  github:
+                    sourceURL.includes(
+                      "github.com"
+                    )
+                      ? sourceURL
+                      : null,
+
+                  kind:
+                    "repository",
+
+                  type:
+                    detectType(
+                      source,
+                      {
+                        name:
+                          sourceName,
+
+                        source:
+                          sourceName
+                      }
+                    ),
+
+                  nsfw:
+                    detectNsfw(
+                      source,
+                      {
+                        name:
+                          sourceName,
+
+                        source:
+                          sourceName
+                      }
+                    ),
+
+                  source:
+                    sourceName,
+
+                  sourceId,
+
+                  category:
+                    source?.category ??
+                    source?.section ??
+                    sourceName,
+
+                  raw:
+                    source
+
+                }
+
+              ],
+
+              seen:
+                new Set()
+
+            }
+          );
+
+        }
+
+
+        groups.forEach(
+          group => {
+
+            /*
+             * A repo itself is still useful even when
+             * Wotaku did not expose its index separately.
+             */
+
+            if (
+              !group.indexes.length &&
+              group.repoUrl
+            ) {
+
+              group.indexes.push({
+
+                id:
+                  `${group.id}|repository`,
+
+                name:
+                  group.name,
+
+                url:
+                  group.repoUrl,
+
+                repoUrl:
+                  group.repoUrl,
+
+                github:
+                  group.github,
+
+                kind:
+                  "repository",
+
+                type:
+                  detectType(
+                    {},
+                    {
+                      name:
+                        group.name,
+
+                      source:
+                        group.source,
+
+                      category:
+                        group.category
+                    }
+                  ),
+
+                nsfw:
+                  detectNsfw(
+                    {},
+                    {
+                      name:
+                        group.name,
+
+                      source:
+                        group.source,
+
+                      category:
+                        group.category
+                    }
+                  ),
+
+                source:
+                  group.source,
+
+                sourceId,
+
+                category:
+                  group.category,
+
+                raw:
+                  {}
+
+              });
+
+            }
+
+
+            delete group.seen;
+
+
+            if (
+              group.indexes.length
+            ) {
+
+              result.push(
+                group
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+
+    return result;
+  }
+
+
+  /*
+   * ============================================================
+   * MASTER FEED NORMALISER
+   * ============================================================
+   */
+
+  function normaliseFeed(data) {
+
+    if (
+      !data ||
+      typeof data !== "object"
+    ) {
+      return [];
+    }
+
+
+    /*
+     * New source-based Worker response.
+     */
+
+    const sourceResult =
+      normaliseSourceFormat(
+        data
+      );
+
+
+    if (
+      sourceResult.length
+    ) {
+
+      return uniqueBy(
+        sourceResult,
+        repo =>
+          [
+            repo.source,
+            repo.name,
+            repo.repoUrl ||
+              repo.indexes
+                .map(x => x.url)
+                .join(",")
+          ].join("|")
+      );
+
+    }
+
+
+    /*
+     * Older/direct Worker response.
+     */
+
+    const directResult =
+      normaliseDirectRepositories(
+        data
+      );
+
+
+    if (
+      directResult.length
+    ) {
+
+      return uniqueBy(
+        directResult,
+        repo =>
+          [
+            repo.source,
+            repo.name,
+            repo.repoUrl ||
+              repo.indexes
+                .map(x => x.url)
+                .join(",")
+          ].join("|")
+      );
+
+    }
+
+
+    return [];
+  }
+
+
+  /*
+   * ============================================================
+   * SOURCE GROUPING
+   * ============================================================
+   */
+
+  function buildSourceGroups() {
+
+    const groups = [
+      {
+        id:
+          "all",
+
+        name:
+          "All",
+
+        count:
+          state.repos.length
+      }
+    ];
+
+
+    const map =
+      new Map();
+
+
+    for (
+      const repo of state.repos
+    ) {
+
+      const key =
+        text(
+          repo.source,
+          "Wotaku"
+        );
+
+
+      if (
+        !map.has(key)
+      ) {
+
+        map.set(
+          key,
+          {
+            id:
+              key
+                .toLowerCase()
+                .replace(
+                  /[^a-z0-9]+/g,
+                  "-"
+                ),
+
+            name:
+              key,
+
+            count:
+              0
+          }
+        );
+
+      }
+
+
+      map.get(key).count++;
+    }
+
+
+    for (
+      const item of map.values()
+    ) {
+      groups.push(item);
+    }
+
+
+    state.sourceGroups =
+      groups;
+  }
+
+
+  /*
+   * ============================================================
+   * SEARCH
+   * ============================================================
+   */
+
+  function repoSearchText(repo) {
+
+    const values = [
+      repo.name,
+      repo.source,
+      repo.category,
+      repo.repoUrl,
+      repo.github
+    ];
+
+
+    for (
+      const item of repo.indexes
+    ) {
+
+      values.push(
+        item.name,
+        item.type,
+        item.source,
+        item.category,
+        item.url,
+        item.kind
+      );
+
+    }
+
+
+    return values
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+  }
+
+
+  function filteredRepos() {
+
+    const query =
+      lower(
+        state.search
+      );
+
+
+    return state.repos.filter(
+      repo => {
+
+        const sourceMatches =
+          state.activeSource ===
+            "all" ||
+          lower(
+            repo.source
+          ) ===
+            lower(
+              state.sourceGroups
+                .find(
+                  group =>
+                    group.id ===
+                    state.activeSource
+                )?.name
+            );
+
+
+        if (!sourceMatches) {
+          return false;
+        }
+
+
+        if (!query) {
+          return true;
+        }
+
+
+        return repoSearchText(
+          repo
+        ).includes(
+          query
+        );
+
+      }
+    );
+  }
+
+
+  /*
+   * ============================================================
+   * ANYMEX DEEP LINK
+   * ============================================================
+   */
+
+  function anymexLink(url) {
+
+    const clean =
+      safeURL(
+        url
+      );
+
+
+    if (!clean) {
+      return "#";
+    }
+
+
+    return (
+      CONFIG.anymexScheme +
+      encodeURIComponent(
+        clean
+      )
+    );
+  }
+
+
+  function openAnymeX(url) {
+
+    const target =
+      safeURL(
+        url
+      );
+
+
+    if (!target) {
+      return;
+    }
+
+
+    window.location.href =
+      anymexLink(
+        target
+      );
+  }
+
+
+  /*
+   * ============================================================
+   * PING
+   * ============================================================
+   */
+
+  async function pingURL(url) {
+
+    const clean =
+      safeURL(
+        url
+      );
+
+
+    if (!clean) {
+
+      return {
+        ok:
+          false,
+
+        status:
+          "Invalid URL",
+
+        code:
+          null
+      };
+
+    }
+
+
+    if (
+      state.pingResults.has(
+        clean
+      )
+    ) {
+
+      return state.pingResults.get(
+        clean
+      );
+
+    }
+
+
+    if (
+      state.pinging.has(
+        clean
+      )
+    ) {
+
+      return {
+        ok:
+          null,
+
+        status:
+          "Checking",
+
+        code:
+          null
+      };
+
+    }
+
+
+    state.pinging.add(
+      clean
+    );
+
+
+    render();
+
+
+    try {
+
+      const controller =
+        new AbortController();
+
+
+      const timeout =
+        setTimeout(
+          () =>
+            controller.abort(),
+          CONFIG.pingTimeout
+        );
+
+
+      const endpoint =
+        CONFIG.pingEndpoint +
+        "?url=" +
+        encodeURIComponent(
+          clean
+        );
+
+
+      const response =
+        await fetch(
+          endpoint,
+          {
+            method:
+              "GET",
+
+            cache:
+              "no-store",
+
+            signal:
+              controller.signal
+          }
+        );
+
+
+      clearTimeout(
+        timeout
+      );
+
+
+      let payload =
+        null;
+
+
+      try {
+        payload =
+          await response.json();
+      } catch {
+        payload =
+          null;
+      }
+
+
+      const result = {
+
+        ok:
+          response.ok &&
+          (
+            payload?.ok !== false
+          ),
+
+        status:
+          text(
+            payload?.status ??
+            payload?.message ??
+            (
+              response.ok
+                ? "Reachable"
+                : `HTTP ${response.status}`
+            )
+          ),
+
+        code:
+          payload?.statusCode ??
+          payload?.code ??
+          response.status,
+
+        latency:
+          payload?.latency ??
+          null
+
+      };
+
+
+      state.pingResults.set(
+        clean,
+        result
+      );
+
+
+      return result;
+
+    } catch (error) {
+
+      const result = {
+
+        ok:
+          false,
+
+        status:
+          error?.name ===
+            "AbortError"
+            ? "Timed out"
+            : "Ping failed",
+
+        code:
+          null,
+
+        latency:
+          null
+
+      };
+
+
+      state.pingResults.set(
+        clean,
+        result
+      );
+
+
+      return result;
+
+    } finally {
+
+      state.pinging.delete(
+        clean
+      );
+
+      render();
+    }
+  }
+
+
+  /*
+   * ============================================================
+   * PING CLICK HANDLER
+   * ============================================================
+   */
+
+  async function handlePing(url, button) {
+
+    if (
+      !url ||
+      !button
+    ) {
+      return;
+    }
+
+
+    const original =
+      button.textContent;
+
+
+    button.disabled =
+      true;
+
+    button.textContent =
+      "Checking";
+
+
+    const result =
+      await pingURL(
+        url
+      );
+
+
+    button.disabled =
+      false;
+
+
+    if (
+      result.ok === true
+    ) {
+
+      button.textContent =
+        result.latency
+          ? `${result.latency} ms`
+          : "Reachable";
+
+    } else if (
+      result.ok === false
+    ) {
+
+      button.textContent =
+        result.status ||
+        "Unavailable";
+
+    } else {
+
+      button.textContent =
+        original;
+
+    }
+
+
+    setTimeout(
+      () => {
+
+        if (
+          document.body.contains(
+            button
+          )
+        ) {
+
+          button.textContent =
+            original;
+
+        }
+
+      },
+      2500
+    );
+  }
+
+
+  /*
+   * ============================================================
+   * REPOSITORY CARD
+   * ============================================================
+   */
+
+  function renderPingState(url) {
+
+    const clean =
+      safeURL(
+        url
+      );
+
+
+    if (!clean) {
+      return "Unknown";
+    }
+
+
+    if (
+      state.pinging.has(
+        clean
+      )
+    ) {
+      return "Checking";
+    }
+
+
+    const result =
+      state.pingResults.get(
+        clean
+      );
+
+
+    if (!result) {
+      return "Not checked";
+    }
+
+
+    if (
+      result.ok === true
+    ) {
+
+      return (
+        result.latency
+          ? `Reachable · ${result.latency} ms`
+          : "Reachable"
+      );
+
+    }
+
+
+    return (
+      result.status ||
+      "Unavailable"
+    );
+  }
+
+
+  function renderExtension(item) {
+
+    const nsfw =
+      item.nsfw === true;
+
+
+    const status =
+      renderPingState(
+        item.url
+      );
+
+
+    const isChecking =
+      state.pinging.has(
+        item.url
+      );
+
+
+    return `
+      <article class="extension-row">
+
+        <div class="extension-main">
+
+          <div class="extension-title">
+            ${escapeHTML(
+              item.name ||
+              "Extension"
+            )}
+
+            ${
+              nsfw
+                ? `
+                  <span
+                    class="extension-badge nsfw-badge"
+                    aria-label="NSFW"
+                  >
+                    NSFW
+                  </span>
+                `
+                : ""
+            }
+
+          </div>
+
+
+          <div class="extension-meta">
+
+            <span>
+              ${escapeHTML(
+                item.type ||
+                "Extension"
+              )}
+            </span>
+
+            <span>
+              ${escapeHTML(
+                item.kind ||
+                "source"
+              )}
+            </span>
+
+          </div>
+
+
+          <div class="extension-status">
+            ${escapeHTML(
+              status
+            )}
+          </div>
+
+        </div>
+
+
+        <div class="extension-actions">
+
+          <button
+            type="button"
+            class="hub-action hub-ping"
+            data-ping="${escapeHTML(
+              item.url
+            )}"
+            ${
+              isChecking
+                ? "disabled"
+                : ""
+            }
+          >
+            ${
+              isChecking
+                ? "Checking"
+                : "Ping"
+            }
+          </button>
+
+
+          <a
+            class="hub-action hub-open"
+            href="${escapeHTML(
+              item.url
+            )}"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open
+          </a>
+
+        </div>
+
+      </article>
+    `;
+  }
+
+
+  function renderRepository(repo) {
+
+    const indexes =
+      repo.indexes || [];
+
+
+    const filteredIndexes =
+      indexes.filter(
+        item => {
+
+          const query =
+            lower(
+              state.search
+            );
+
+
+          if (!query) {
+            return true;
+          }
+
+
+          return [
+            item.name,
+            item.type,
+            item.kind,
+            item.url,
+            item.source,
+            item.category
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(query);
+
+        }
+      );
+
+
+    if (
+      state.search &&
+      !filteredIndexes.length &&
+      !repoSearchText(
+        repo
+      ).includes(
+        lower(
+          state.search
+        )
+      )
+    ) {
+
+      return "";
+
+    }
+
+
+    const repositoryTarget =
+      repo.repoUrl ||
+      repo.github ||
+      indexes[0]?.repoUrl ||
+      indexes[0]?.url ||
+      null;
+
+
+    const repoStatus =
+      renderPingState(
+        repositoryTarget
+      );
+
+
+    const repoNSFW =
+      repo.nsfw === true ||
+      indexes.some(
+        item => item.nsfw
+      );
+
+
+    return `
+      <section
+        class="repo-card"
+        data-repo="${escapeHTML(
+          repo.id
+        )}"
+      >
+
+        <div class="repo-header">
+
+          <div class="repo-heading">
+
+            <div class="repo-source">
+              ${escapeHTML(
+                repo.source ||
+                "Wotaku"
+              )}
             </div>
 
-            <div class="section-meta">
-              ${repos.length}
-              ${repos.length === 1 ? "repository" : "repositories"}
-              /
-              ${extensionCount}
-              ${extensionCount === 1 ? "extension" : "extensions"}
+
+            <h2 class="repo-name">
+              ${escapeHTML(
+                repo.name ||
+                "Unnamed repository"
+              )}
+
+              ${
+                repoNSFW
+                  ? `
+                    <span
+                      class="repo-badge nsfw-badge"
+                    >
+                      NSFW
+                    </span>
+                  `
+                  : ""
+              }
+            </h2>
+
+
+            <div class="repo-meta">
+
+              ${
+                repo.category
+                  ? escapeHTML(
+                      repo.category
+                    )
+                  : "Extension repository"
+              }
+
+              <span>
+                ${indexes.length}
+                ${
+                  indexes.length === 1
+                    ? "entry"
+                    : "entries"
+                }
+              </span>
+
             </div>
 
           </div>
 
-          <div class="repo-grid">
 
-            ${repos
-              .map(renderRepo)
-              .join("")}
+          <div class="repo-actions">
+
+            ${
+              repositoryTarget
+                ? `
+                  <button
+                    type="button"
+                    class="hub-action hub-add"
+                    data-add-repo="${escapeHTML(
+                      repositoryTarget
+                    )}"
+                  >
+                    Add to AnymeX
+                  </button>
+                `
+                : ""
+            }
+
+
+            ${
+              repositoryTarget
+                ? `
+                  <button
+                    type="button"
+                    class="hub-action hub-ping"
+                    data-ping="${escapeHTML(
+                      repositoryTarget
+                    )}"
+                  >
+                    ${
+                      state.pinging.has(
+                        repositoryTarget
+                      )
+                        ? "Checking"
+                        : "Ping"
+                    }
+                  </button>
+                `
+                : ""
+            }
+
+
+            ${
+              repo.github
+                ? `
+                  <a
+                    class="hub-action hub-open"
+                    href="${escapeHTML(
+                      repo.github
+                    )}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    GitHub
+                  </a>
+                `
+                : ""
+            }
 
           </div>
 
-        </section>
+        </div>
+
+
+        <div class="repo-status">
+          ${escapeHTML(
+            repoStatus
+          )}
+        </div>
+
+
+        <div class="extension-list">
+
+          ${
+            filteredIndexes.length
+              ? filteredIndexes
+                  .map(
+                    renderExtension
+                  )
+                  .join("")
+              : `
+                <div class="extension-empty">
+                  No matching extensions
+                </div>
+              `
+          }
+
+        </div>
+
+      </section>
+    `;
+  }
+
+
+  /*
+   * ============================================================
+   * FEED CONTAINER
+   * ============================================================
+   */
+
+  function getFeedContainer() {
+
+    return firstExisting(
+      [
+        "#feed",
+        "#content",
+        "#repos",
+        "#repository-list",
+        "#repo-list",
+        ".feed",
+        ".repo-list"
+      ]
+    );
+  }
+
+
+  function ensureFeedContainer() {
+
+    let container =
+      getFeedContainer();
+
+
+    if (container) {
+      return container;
+    }
+
+
+    const main =
+      firstExisting(
+        [
+          "main",
+          ".app",
+          "body"
+        ]
+      );
+
+
+    if (!main) {
+      return null;
+    }
+
+
+    container =
+      document.createElement(
+        "div"
+      );
+
+
+    container.id =
+      "feed";
+
+
+    main.appendChild(
+      container
+    );
+
+
+    return container;
+  }
+
+
+  /*
+   * ============================================================
+   * STATUS ELEMENT
+   * ============================================================
+   */
+
+  function getStatusElement() {
+
+    return firstExisting(
+      [
+        "#status",
+        "#statusText",
+        "#feed-status",
+        ".status-text",
+        ".feed-status"
+      ]
+    );
+  }
+
+
+  function setStatus(message) {
+
+    const element =
+      getStatusElement();
+
+
+    if (element) {
+      element.textContent =
+        message;
+    }
+  }
+
+
+  /*
+   * ============================================================
+   * SOURCE FILTERS
+   * ============================================================
+   */
+
+  function getSourceTabsContainer() {
+
+    return firstExisting(
+      [
+        "#source-tabs",
+        ".source-tabs",
+        ".tabs",
+        ".filter-tabs"
+      ]
+    );
+  }
+
+
+  function renderSourceTabs() {
+
+    const container =
+      getSourceTabsContainer();
+
+
+    if (!container) {
+      return;
+    }
+
+
+    /*
+     * Preserve the existing container styling,
+     * but rebuild its buttons from the actual feed.
+     */
+
+    container.innerHTML =
+      state.sourceGroups
+        .map(
+          group => {
+
+            const active =
+              state.activeSource ===
+              group.id;
+
+
+            return `
+              <button
+                type="button"
+                class="tab source-tab ${
+                  active
+                    ? "active"
+                    : ""
+                }"
+                data-source-filter="${escapeHTML(
+                  group.id
+                )}"
+              >
+                <span>
+                  ${escapeHTML(
+                    group.name
+                  )}
+                </span>
+
+                <small>
+                  ${group.count}
+                </small>
+              </button>
+            `;
+
+          }
+        )
+        .join("");
+
+
+    $$(".source-tab", container)
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            "click",
+            () => {
+
+              state.activeSource =
+                button.dataset
+                  .sourceFilter ||
+                "all";
+
+
+              renderSourceTabs();
+
+              renderFeed();
+
+            }
+          );
+
+        }
+      );
+  }
+
+
+  /*
+   * ============================================================
+   * FEED RENDER
+   * ============================================================
+   */
+
+  function renderFeed() {
+
+    const container =
+      ensureFeedContainer();
+
+
+    if (!container) {
+      return;
+    }
+
+
+    if (
+      state.loading
+    ) {
+
+      container.innerHTML = `
+        <div class="feed-message">
+          Loading live extension catalog
+        </div>
       `;
+
+      return;
+    }
+
+
+    if (
+      state.error
+    ) {
+
+      container.innerHTML = `
+        <div class="feed-message feed-error">
+
+          <strong>
+            Live feed could not be loaded
+          </strong>
+
+          <p>
+            ${escapeHTML(
+              state.error
+            )}
+          </p>
+
+          <button
+            type="button"
+            class="hub-action hub-add"
+            id="retry-feed"
+          >
+            Retry
+          </button>
+
+        </div>
+      `;
+
+
+      const retry =
+        $("#retry-feed");
+
+
+      if (retry) {
+
+        retry.addEventListener(
+          "click",
+          loadFeed
+        );
+
+      }
+
+
+      return;
+    }
+
+
+    const repos =
+      filteredRepos();
+
+
+    if (!repos.length) {
+
+      container.innerHTML = `
+        <div class="feed-message">
+          <strong>
+            No repositories found
+          </strong>
+
+          <p>
+            Try another search or switch source.
+          </p>
+        </div>
+      `;
+
+      return;
+    }
+
+
+    container.innerHTML =
+      repos
+        .map(
+          renderRepository
+        )
+        .filter(Boolean)
+        .join("");
+
+
+    bindFeedActions();
+  }
+
+
+  /*
+   * ============================================================
+   * ACTION BINDING
+   * ============================================================
+   */
+
+  function bindFeedActions() {
+
+    const container =
+      getFeedContainer();
+
+
+    if (!container) {
+      return;
+    }
+
+
+    $$(
+      "[data-add-repo]",
+      container
+    )
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            "click",
+            event => {
+
+              event.preventDefault();
+
+
+              const url =
+                button.dataset
+                  .addRepo;
+
+
+              openAnymeX(
+                url
+              );
+
+            }
+          );
+
+        }
+      );
+
+
+    $$(
+      "[data-ping]",
+      container
+    )
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            "click",
+            event => {
+
+              event.preventDefault();
+
+
+              const url =
+                button.dataset
+                  .ping;
+
+
+              handlePing(
+                url,
+                button
+              );
+
+            }
+          );
+
+        }
+      );
+
+  }
+
+
+  /*
+   * ============================================================
+   * SEARCH
+   * ============================================================
+   */
+
+  function getSearchElement() {
+
+    return firstExisting(
+      [
+        "#search",
+        "#q",
+        "#searchInput",
+        "#repo-search",
+        "input[type='search']",
+        ".search input"
+      ]
+    );
+  }
+
+
+  function bindSearch() {
+
+    const input =
+      getSearchElement();
+
+
+    if (!input) {
+      return;
+    }
+
+
+    input.addEventListener(
+      "input",
+      () => {
+
+        state.search =
+          text(
+            input.value
+          );
+
+
+        renderFeed();
+
+      }
+    );
+
+
+    state.search =
+      text(
+        input.value
+      );
+  }
+
+
+  /*
+   * ============================================================
+   * FEED LOADING
+   * ============================================================
+   */
+
+  async function loadFeed() {
+
+    state.loading =
+      true;
+
+    state.error =
+      null;
+
+
+    setStatus(
+      "Loading live feed"
+    );
+
+
+    renderFeed();
+
+
+    try {
+
+      const controller =
+        new AbortController();
+
+
+      const timeout =
+        setTimeout(
+          () =>
+            controller.abort(),
+          CONFIG.requestTimeout
+        );
+
+
+      const response =
+        await fetch(
+          CONFIG.feedEndpoint,
+          {
+            method:
+              "GET",
+
+            cache:
+              "no-store",
+
+            headers: {
+              "Accept":
+                "application/json"
+            },
+
+            signal:
+              controller.signal
+          }
+        );
+
+
+      clearTimeout(
+        timeout
+      );
+
+
+      if (
+        !response.ok
+      ) {
+
+        throw new Error(
+          `Worker returned HTTP ${response.status}`
+        );
+
+      }
+
+
+      const data =
+        await response.json();
+
+
+      state.raw =
+        data;
+
+
+      state.repos =
+        normaliseFeed(
+          data
+        );
+
+
+      state.generatedAt =
+        data?.generatedAt ||
+        data?.updatedAt ||
+        null;
+
+
+      state.lastUpdated =
+        new Date();
+
+
+      /*
+       * The important part:
+       *
+       * Never treat a valid Worker response as empty
+       * merely because it uses "sources" instead of "repos".
+       */
+
+      if (
+        !state.repos.length
+      ) {
+
+        throw new Error(
+          "The Worker responded successfully, but no repository entries could be normalised from its JSON."
+        );
+
+      }
+
+
+      buildSourceGroups();
+
+
+      state.activeSource =
+        "all";
+
+
+      state.loading =
+        false;
+
+
+      setStatus(
+        `Live feed ready: ${state.repos.length} repositories`
+      );
+
+
+      renderSourceTabs();
+
+      renderFeed();
+
+
+    } catch (error) {
+
+      console.error(
+        "[AnymeX Hub] Feed error:",
+        error
+      );
+
+
+      state.loading =
+        false;
+
+
+      state.repos =
+        [];
+
+
+      state.error =
+        error?.name ===
+          "AbortError"
+          ? "The live feed request timed out."
+          : (
+              error?.message ||
+              "Unable to load the live feed."
+            );
+
+
+      setStatus(
+        "Live feed unavailable"
+      );
+
+
+      renderFeed();
+
+    }
+
+  }
+
+
+  /*
+   * ============================================================
+   * GLOBAL EVENT DELEGATION
+   *
+   * Useful if the existing HTML has buttons generated
+   * outside our renderer.
+   * ============================================================
+   */
+
+  document.addEventListener(
+    "click",
+    event => {
+
+      const addButton =
+        event.target.closest(
+          "[data-add-url]"
+        );
+
+
+      if (
+        addButton
+      ) {
+
+        event.preventDefault();
+
+
+        openAnymeX(
+          addButton.dataset
+            .addUrl
+        );
+
+        return;
+      }
+
+
+      const pingButton =
+        event.target.closest(
+          "[data-ping-url]"
+        );
+
+
+      if (
+        pingButton
+      ) {
+
+        event.preventDefault();
+
+
+        handlePing(
+          pingButton.dataset
+            .pingUrl,
+          pingButton
+        );
+
+      }
 
     }
   );
 
-  content.innerHTML = html;
 
-  updateMetrics();
+  /*
+   * ============================================================
+   * PUBLIC DEBUG API
+   *
+   * Useful from Safari/desktop console.
+   *
+   * window.AnymeXHub.reload()
+   * window.AnymeXHub.ping(url)
+   * window.AnymeXHub.state
+   * ============================================================
+   */
 
-}
+  window.AnymeXHub = {
+
+    reload:
+      loadFeed,
+
+    ping:
+      pingURL,
+
+    add:
+      openAnymeX,
+
+    normalise:
+      normaliseFeed,
+
+    state
+
+  };
 
 
-function updateMetrics(){
+  /*
+   * ============================================================
+   * START
+   * ============================================================
+   */
 
-  const repositoryCount =
-    state.repos.length;
+  function boot() {
 
-  const extensionCount =
-    state.repos.reduce(
-      (total, repo) =>
-        total + repo.indexes.length,
-      0
+    bindSearch();
+
+    renderSourceTabs();
+
+    renderFeed();
+
+    loadFeed();
+
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      boot,
+      {
+        once:
+          true
+      }
     );
 
-  repoMetric.textContent =
-    `Repositories ${repositoryCount}`;
+  } else {
 
-  extensionMetric.textContent =
-    `Extensions ${extensionCount}`;
-
-}
-
-
-async function loadFeed(){
-
-  statusText.textContent =
-    "Loading live feed";
-
-  feedMetric.textContent =
-    "Loading";
-
-  reloadButton.disabled = true;
-
-  try{
-
-    const response =
-      await fetch(
-        API_URL,
-        {
-          method:"GET",
-          cache:"no-store",
-          headers:{
-            Accept:"application/json"
-          }
-        }
-      );
-
-    if(!response.ok){
-
-      throw new Error(
-        `HTTP ${response.status}`
-      );
-
-    }
-
-    const data =
-      await response.json();
-
-    state.feed =
-      data;
-
-    state.repos =
-      normaliseFeed(data);
-
-    statusText.textContent =
-      "Live feed ready";
-
-    feedMetric.textContent =
-      "Live";
-
-    render();
-
-  }catch(error){
-
-    console.error(error);
-
-    state.feed = null;
-    state.repos = [];
-
-    statusText.textContent =
-      "Feed unavailable";
-
-    feedMetric.textContent =
-      "Error";
-
-    content.innerHTML = `
-      <div class="empty error">
-        The live Wotaku repository feed
-        could not be loaded.
-        <br>
-        <br>
-        ${escapeHtml(error.message)}
-      </div>
-    `;
-
-  }finally{
-
-    reloadButton.disabled = false;
+    boot();
 
   }
 
-}
-
-
-typeTabs.addEventListener(
-  "click",
-  event => {
-
-    const button =
-      event.target.closest(
-        "[data-type]"
-      );
-
-    if(!button){
-      return;
-    }
-
-    state.type =
-      button.dataset.type;
-
-    render();
-
-  }
-);
-
-
-sourceFilter.addEventListener(
-  "click",
-  event => {
-
-    const button =
-      event.target.closest(
-        "[data-source]"
-      );
-
-    if(!button){
-      return;
-    }
-
-    state.source =
-      button.dataset.source;
-
-    render();
-
-  }
-);
-
-
-searchInput.addEventListener(
-  "input",
-  event => {
-
-    state.search =
-      event.target.value
-        .trim()
-        .toLowerCase();
-
-    render();
-
-  }
-);
-
-
-reloadButton.addEventListener(
-  "click",
-  () => {
-    loadFeed();
-  }
-);
-
-
-loadFeed();
+})();
 </script>
 
 </body>
